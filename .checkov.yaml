@@ -50,10 +50,6 @@ skip-check:
   # Security groups may be created by the module and attached later by consumers.
   - CKV2_AWS_5
 
-  # CKV2_AWS_11
-  # VPC Flow Logs are not enabled by default and may be managed externally.
-  - CKV2_AWS_11
-
   # CKV2_AWS_19
   # Elastic IP is associated with a NAT Gateway, which triggers this check.
   - CKV2_AWS_19
