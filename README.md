@@ -55,17 +55,14 @@ terraform apply
 | `modules/vpc` | Implemented | VPC, public/private subnets, NAT gateway, route tables, and optional public security group |
 | `modules/eks` | Implemented | EKS cluster, standard managed node group, Auto Mode support, addons, pod identity, and optional Fargate/LBC roles |
 | `modules/ec2` | Implemented | EC2 instance, root volume, optional EBS data volumes, and volume attachments |
-| `modules/s3` | Skeleton | Creates an empty S3 bucket resource; variables, outputs, and bucket settings are not defined yet |
-| `modules/asg` | Not implemented | Directory is currently empty |
-| `modules/lb` | Not implemented | Directory is currently empty |
-| `modules/rds` | Not implemented | Directory exists, but `main.tf` is currently empty |
 
 ## VPC Module
 
 The VPC module creates one public and one private subnet per selected
-availability zone. Private subnet traffic uses a NAT gateway. The default
-security group, which allows HTTP, HTTPS, and SSH from the internet, can be
-disabled with `default_sg_required = false`.
+availability zone. Private subnet traffic uses a NAT gateway. It also enables
+VPC Flow Logs and sends them to a CloudWatch log group. The default security
+group, which allows HTTP, HTTPS, and SSH from the internet, can be disabled
+with `default_sg_required = false`.
 
 ```hcl
 module "vpc" {
@@ -80,6 +77,8 @@ module "vpc" {
 	project_name          = "demo"
 	project_owner         = "platform-team"
 	default_sg_required   = false
+	log_group_retention_in_days = 365
+	log_group_kms_key_arn       = null
 }
 
 output "vpc_id" {
@@ -99,10 +98,18 @@ VPC outputs:
 - `public_subnet_map` (availability zone to subnet ID)
 - `private_subnet_map` (availability zone to subnet ID)
 
+VPC Flow Logs settings:
+
+- `log_group_retention_in_days` controls CloudWatch log retention and defaults
+	to `365` days.
+- `log_group_kms_key_arn` optionally encrypts the CloudWatch log group.
+
 ## EKS Module
 
 Pass the private subnet IDs from the VPC module to create an EKS cluster. The
-default `eks_mode` is `standard`; set it to `auto` to enable EKS Auto Mode.
+cluster enables API, audit, authenticator, controller manager, and scheduler
+control-plane logs. The default `eks_mode` is `standard`; set it to `auto` to
+enable EKS Auto Mode.
 
 ```hcl
 module "eks" {
@@ -182,17 +189,6 @@ module "ec2" {
 
 EC2 outputs are `instance_id`, `instance_private_ip`, `instance_public_ip`,
 and `attached_ebs_volume_ids`.
-
-## S3 Module
-
-The S3 module currently contains only an `aws_s3_bucket.this` resource and has
-no configurable inputs or outputs. It is not yet suitable for production use.
-
-```hcl
-module "s3" {
-	source = "git::https://github.com/pratik-khot/aws-terraform-modules.git//modules/s3?ref=v1.0.0"
-}
-```
 
 ## Examples
 
