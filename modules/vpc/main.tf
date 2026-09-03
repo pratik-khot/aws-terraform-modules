@@ -155,6 +155,8 @@ resource "aws_flow_log" "this" {
 
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name = "vpc-flow-logs"
+  retention_in_days = var.log_group_retention_in_days
+  kms_key_id = var.log_group_kms_key_arn
 }
 
 data "aws_iam_policy_document" "assume_role" {

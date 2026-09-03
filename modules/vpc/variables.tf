@@ -56,3 +56,13 @@ variable "default_sg_required" {
   type        = bool
   default     = true
 }
+
+variable "log_group_kms_key_arn" {
+  type    = string
+  default = null
+}
+
+variable "log_group_retention_in_days" {
+  type    = number
+  default = 365
+}

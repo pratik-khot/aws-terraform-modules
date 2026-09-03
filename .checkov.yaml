@@ -53,3 +53,7 @@ skip-check:
   # CKV2_AWS_19
   # Elastic IP is associated with a NAT Gateway, which triggers this check.
   - CKV2_AWS_19
+  # CKV_AWS_356
+  #Role includes * to allow , this is intentional for log group policy.
+  - CKV_AWS_356
+  - CKV_AWS_111
