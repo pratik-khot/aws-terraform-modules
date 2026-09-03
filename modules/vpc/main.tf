@@ -29,7 +29,7 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = merge(local.custom_tags, {
-    Name = "${aws_vpc.main.tags.Name}-pub-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}",
+    Name                     = "${aws_vpc.main.tags.Name}-pub-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}",
     "kubernetes.io/role/elb" = "1"
   })
 }
@@ -42,7 +42,7 @@ resource "aws_subnet" "private" {
   cidr_block        = each.value
   availability_zone = each.key
   tags = merge(local.custom_tags, {
-    Name = "${aws_vpc.main.tags.Name}-pvt-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}",
+    Name                              = "${aws_vpc.main.tags.Name}-pvt-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}",
     "kubernetes.io/role/internal-elb" = "1"
   })
 }

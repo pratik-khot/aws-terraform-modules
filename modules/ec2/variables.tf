@@ -122,15 +122,15 @@ variable "root_volume_specs" {
 variable "data_volume_specs" {
   description = "Optional additional EBS volume definitions keyed by logical name. This is only used when you want to define volumes outside the instance block."
   type = map(object({
-    instance_key         = optional(string)
-    size                 = number
-    type                 = optional(string, "gp3")
+    instance_key          = optional(string)
+    size                  = number
+    type                  = optional(string, "gp3")
     delete_on_termination = optional(bool, true)
-    encrypted            = optional(bool, true)
-    device_name          = string
-    kms_key_id           = optional(string)
-    iops                 = optional(number)
-    throughput           = optional(number)
+    encrypted             = optional(bool, true)
+    device_name           = string
+    kms_key_id            = optional(string)
+    iops                  = optional(number)
+    throughput            = optional(number)
   }))
 
   default = {}
