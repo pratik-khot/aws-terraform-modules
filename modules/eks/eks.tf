@@ -4,6 +4,7 @@ resource "aws_eks_cluster" "this" {
   role_arn                      = aws_iam_role.eks_cluster.arn
   version                       = var.cluster_version
   bootstrap_self_managed_addons = false
+  enabled_cluster_log_types = ["API", "Audit", "Authenticator", "ControllerManager", "Scheduler"]
   access_config {
     authentication_mode                         = var.auth_mode
     bootstrap_cluster_creator_admin_permissions = var.creator_admin_permissions

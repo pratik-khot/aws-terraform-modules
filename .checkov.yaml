@@ -1,0 +1,11 @@
+compact: true
+quiet: true
+framework:
+  - terraform
+
+skip-check:
+# skip checks for aws eks
+  - CKV_AWS_38
+  - CKV_AWS_39
+  - CKV_AWS_58
+  - CKV_AWS_339
