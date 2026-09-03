@@ -1,11 +1,59 @@
 compact: true
 quiet: true
+
 framework:
   - terraform
 
 skip-check:
-# skip checks for aws eks
+  # --------------------------------------------------------------------------
+  # EKS
+  # --------------------------------------------------------------------------
+
+  # CKV_AWS_38
+  # Public API endpoint is intentionally enabled for cluster access.
   - CKV_AWS_38
+
+  # CKV_AWS_39
+  # EKS control plane logging not enabled by default.
   - CKV_AWS_39
+
+  # CKV_AWS_58
+  # EKS secrets encryption with customer-managed KMS key is not enforced.
   - CKV_AWS_58
+
+  # CKV_AWS_339
+  # Kubernetes version is controlled through module variables.
   - CKV_AWS_339
+
+  # --------------------------------------------------------------------------
+  # VPC & Networking
+  # --------------------------------------------------------------------------
+
+  # CKV_AWS_130
+  # Public subnets intentionally assign public IPs to launched resources.
+  - CKV_AWS_130
+
+  # CKV_AWS_260
+  # HTTP (port 80) ingress from the Internet is allowed for public applications.
+  - CKV_AWS_260
+
+  # CKV_AWS_24
+  # SSH (port 22) ingress from the Internet is allowed by design.
+  # Revisit for production environments.
+  - CKV_AWS_24
+
+  # CKV2_AWS_12
+  # Default VPC security group restrictions are not managed by this module.
+  - CKV2_AWS_12
+
+  # CKV2_AWS_5
+  # Security groups may be created by the module and attached later by consumers.
+  - CKV2_AWS_5
+
+  # CKV2_AWS_11
+  # VPC Flow Logs are not enabled by default and may be managed externally.
+  - CKV2_AWS_11
+
+  # CKV2_AWS_19
+  # Elastic IP is associated with a NAT Gateway, which triggers this check.
+  - CKV2_AWS_19
