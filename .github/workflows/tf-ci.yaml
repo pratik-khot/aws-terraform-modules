@@ -1,0 +1,72 @@
+name: Terraform CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'modules/**'
+      - '**/*.tf'
+      - '.github/workflows/tf-ci.yaml'
+      - '.github/actions/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'modules/**'
+      - '**/*.tf'
+      - '.github/workflows/tf-ci.yaml'
+      - '.github/actions/**'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      working_dirs: ${{ steps.changed.outputs.working_dirs }}
+      has_changes: ${{ steps.changed.outputs.has_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed Terraform dirs
+        id: changed
+        uses: ./.github/actions/changed-terraform-dirs
+
+  terraform-checks:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.has_changes == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        working_dir: ${{ fromJSON(needs.detect-changes.outputs.working_dirs) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform format check
+        working-directory: ${{ matrix.working_dir }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: ${{ matrix.working_dir }}
+        run: terraform init -backend=false -no-color
+
+      - name: Terraform validate
+        working-directory: ${{ matrix.working_dir }}
+        run: terraform validate -no-color
+
+      - name: Checkov scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ${{ matrix.working_dir }}
+          quiet: true
+          framework: terraform

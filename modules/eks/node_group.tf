@@ -1,3 +1,4 @@
+# Managed EC2 worker node group for standard EKS mode.
 resource "aws_eks_node_group" "this" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.cluster_name}-node-group"
@@ -5,8 +6,8 @@ resource "aws_eks_node_group" "this" {
   subnet_ids      = var.subnet_ids
 
   scaling_config {
-    desired_size = 1
-    max_size     = 2
+    desired_size = 2
+    max_size     = 3
     min_size     = 1
   }
 
@@ -27,6 +28,7 @@ resource "aws_eks_node_group" "this" {
   })
 }
 
+# IAM role assumed by worker nodes.
 resource "aws_iam_role" "node_group_role" {
   name = "${var.cluster_name}-eks-node-group-role"
 

@@ -1,6 +1,6 @@
-##VPC
+# VPC network container.
 resource "aws_vpc" "main" {
-  cidr_block       = "10.0.0.0/16"
+  cidr_block       = var.vpc_cidr
   instance_tenancy = "default"
   region           = var.region
 
@@ -12,7 +12,7 @@ resource "aws_vpc" "main" {
 }
 
 
-#IG
+# Internet gateway for public internet access.
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   tags = merge(local.custom_tags, {
@@ -20,7 +20,7 @@ resource "aws_internet_gateway" "main" {
   })
 }
 
-#Public Subnet
+# Public subnets for internet-facing resources.
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   for_each                = { for idx, az in local.azs : az => local.public_subnets[idx] }
@@ -29,11 +29,12 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = merge(local.custom_tags, {
-    Name = "${aws_vpc.main.tags.Name}-pub-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}"
+    Name = "${aws_vpc.main.tags.Name}-pub-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}",
+    "kubernetes.io/role/elb" = "1"
   })
 }
 
-#Private Subnet
+# Private subnets for internal resources.
 
 resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
@@ -41,11 +42,12 @@ resource "aws_subnet" "private" {
   cidr_block        = each.value
   availability_zone = each.key
   tags = merge(local.custom_tags, {
-    Name = "${aws_vpc.main.tags.Name}-pvt-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}"
+    Name = "${aws_vpc.main.tags.Name}-pvt-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}",
+    "kubernetes.io/role/internal-elb" = "1"
   })
 }
 
-## Elastic IP for NAT Gateway
+# Elastic IP used by the NAT gateway in zonal mode.
 resource "aws_eip" "nat" {
   tags = merge(local.custom_tags, {
     Name = "${aws_vpc.main.tags.Name}-nat-eip"
@@ -54,7 +56,7 @@ resource "aws_eip" "nat" {
 }
 
 
-## NAT Gateway
+# NAT gateway for private subnet egress.
 resource "aws_nat_gateway" "main" {
   availability_mode = var.nat_availability_mode
   connectivity_type = "public"
@@ -67,7 +69,7 @@ resource "aws_nat_gateway" "main" {
 }
 
 
-##Public Route Table
+# Public route table sends internet traffic to the gateway.
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main.id
   route {
@@ -80,7 +82,7 @@ resource "aws_route_table" "public_rt" {
 
 }
 
-## Public Route Table Association
+# Associate public subnets with the public route table.
 resource "aws_route_table_association" "public_rta" {
   for_each       = aws_subnet.public
   subnet_id      = each.value.id
@@ -88,7 +90,7 @@ resource "aws_route_table_association" "public_rta" {
 }
 
 
-## Private Route Table
+# Private route table sends egress traffic through the NAT gateway.
 resource "aws_route_table" "private_rt" {
   vpc_id = aws_vpc.main.id
   route {
@@ -101,7 +103,7 @@ resource "aws_route_table" "private_rt" {
   })
 }
 
-## Private Route Table Association
+# Associate private subnets with the private route table.
 resource "aws_route_table_association" "private_rta" {
   for_each       = aws_subnet.private
   subnet_id      = each.value.id
@@ -109,6 +111,7 @@ resource "aws_route_table_association" "private_rta" {
 }
 
 
+# Optional security group for public access.
 resource "aws_security_group" "default" {
   count       = var.default_sg_required ? 1 : 0
   name        = "${aws_vpc.main.tags.Name}-public-sg"
@@ -120,6 +123,7 @@ resource "aws_security_group" "default" {
   })
 }
 
+# Allow HTTP, HTTPS, and SSH ingress when the public group is enabled.
 resource "aws_vpc_security_group_ingress_rule" "public" {
   for_each = { "allow http inbound from internet" = 80, "allow https inbound from internet" = 443, "allow ssh inbound from internet" = 22 }
 
@@ -131,6 +135,7 @@ resource "aws_vpc_security_group_ingress_rule" "public" {
   description       = each.key
 }
 
+# Allow outbound traffic from the public security group.
 resource "aws_vpc_security_group_egress_rule" "public" {
   security_group_id = aws_security_group.default[0].id
   ip_protocol       = "-1"

@@ -1,0 +1,54 @@
+name: Changed Terraform Dirs
+description: Detect changed Terraform folders and output the working directories for CI
+
+outputs:
+  working_dirs:
+    description: JSON array of changed Terraform working directories
+    value: ${{ steps.build.outputs.working_dirs }}
+  has_changes:
+    description: Whether any Terraform-related files changed
+    value: ${{ steps.build.outputs.has_changes }}
+
+runs:
+  using: composite
+  steps:
+    - id: changed-files
+      uses: tj-actions/changed-files@v45
+      with:
+        files_yaml: |
+          terraform:
+            - 'modules/**'
+            - '**/*.tf'
+
+    - id: build
+      shell: bash
+      env:
+        CHANGED_FILES: ${{ steps.changed-files.outputs.terraform_all_changed_files }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${CHANGED_FILES}" ]]; then
+          echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          echo "working_dirs=[]" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        mapfile -t dirs < <(
+          printf '%s\n' "$CHANGED_FILES" \
+            | tr ' ' '\n' \
+            | sed '/^$/d' \
+            | awk -F/ 'NF>=2 {print $1 "/" $2}' \
+            | sort -u
+        )
+
+        if [[ ${#dirs[@]} -eq 0 ]]; then
+          echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          echo "working_dirs=[]" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        working_dirs=$(printf '%s\n' "${dirs[@]}" | jq -R -s -c 'split("\n")[:-1]')
+
+        echo "has_changes=true" >> "$GITHUB_OUTPUT"
+        echo "working_dirs=$working_dirs" >> "$GITHUB_OUTPUT"
+        echo "Changed Terraform directories: $working_dirs"

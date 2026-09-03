@@ -1,3 +1,4 @@
+# Optional Fargate profile for pods in the selected namespace.
 resource "aws_eks_fargate_profile" "this" {
   count                  = var.enable_fargate ? 1 : 0
   cluster_name           = aws_eks_cluster.this.name
@@ -15,6 +16,7 @@ resource "aws_eks_fargate_profile" "this" {
 
 }
 
+# Pod execution role used by the Fargate profile.
 resource "aws_iam_role" "fargate" {
   count = var.enable_fargate ? 1 : 0
   name  = "${aws_eks_cluster.this.name}-fargate-role"

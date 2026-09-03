@@ -3,6 +3,12 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "cluster_version" {
+  description = "The Kubernetes version for the EKS cluster."
+  type        = string
+  default     = "1.36"
+}
+
 variable "subnet_ids" {
   description = "A list of subnet IDs for the EKS cluster."
   type        = list(string)
@@ -32,11 +38,11 @@ variable "auth_mode" {
 
 variable "eks_mode" {
   type    = string
-  default = "managed"
+  default = "standard"
 
   validation {
-    condition     = var.eks_mode == "managed" || var.eks_mode == "auto"
-    error_message = "eks_mode must be either 'managed_mode' or 'auto_mode'."
+    condition     = contains(["standard", "auto"], var.eks_mode)
+    error_message = "eks_mode must be either 'standard' or 'auto'."
   }
 }
 
@@ -49,13 +55,12 @@ variable "fargate_namespace" {
 }
 
 variable "addons" {
-  type = list(string)
+  type    = map(any)
+  default = {}
+}
 
-  default = [
-    "coredns",
-    "kube-proxy",
-    "vpc-cni",
-    "eks-pod-identity-agent",
-    "aws-ebs-csi-driver"
-  ]
+variable "create_lbc_role" {
+  description = "Whether to create an IAM role,policy,PIA for the AWS Load Balancer Controller"
+  type        = bool
+  default     = false
 }
