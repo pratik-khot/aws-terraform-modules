@@ -55,7 +55,7 @@ resource "aws_ebs_volume" "this" {
   size              = each.value.size
   type              = each.value.type
   encrypted         = true
-  kms_key_id        = each.value.kms_key_id
+  kms_key_id        = coalesce(each.value.kms_key_id, data.aws_kms_alias.ebs.target_key_arn)
   iops              = each.value.iops
   throughput        = each.value.throughput
 
