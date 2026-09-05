@@ -61,7 +61,12 @@ variable "enable_monitoring" {
 variable "ebs_optimized" {
   description = "Whether to enable EBS optimization"
   type        = bool
-  default     = false
+  default     = true
+
+  validation {
+    condition     = var.ebs_optimized == true
+    error_message = "ebs optimized should be kept as true only"
+  }
 }
 
 variable "user_data" {
