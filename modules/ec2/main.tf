@@ -62,7 +62,8 @@ resource "aws_ebs_volume" "this" {
   tags = merge(
     local.default_tags,
     {
-      Name = "${var.app_name}-${var.env}-${each.key}"
+      Name          = "${var.app_name}-${var.env}-${each.key}",
+      instance_name = aws_instance.this.tags["Name"]
     }
   )
 }
