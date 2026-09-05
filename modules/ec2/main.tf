@@ -59,12 +59,12 @@ resource "aws_ebs_volume" "this" {
   iops              = each.value.iops
   throughput        = each.value.throughput
 
-  tags = merge(
-    local.default_tags,
-    {
-      Name = "${var.app_name}-${var.env}-${each.key}"
-    }
-  )
+  # tags = merge(
+  #   local.default_tags,
+  #   {
+  #     Name = "${var.app_name}-${var.env}-${each.key}"
+  #   }
+  # )
 }
 
 # Attach each data disk to the instance.
