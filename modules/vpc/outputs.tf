@@ -22,3 +22,8 @@ output "private_subnet_map" {
   value       = { for az, subnet in aws_subnet.private : az => subnet.id }
   description = "Map of AZ to Private Subnet ID"
 }
+
+output "default_security_group_id" {
+  value       = aws_security_group.default.id
+  description = "The ID of the default security group"
+}
