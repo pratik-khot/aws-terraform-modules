@@ -15,6 +15,11 @@ resource "aws_instance" "this" {
   monitoring                  = var.enable_monitoring
   ebs_optimized               = var.ebs_optimized
   user_data                   = var.user_data
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+
+  }
 
 
   # Root disk attached to the instance.
@@ -22,7 +27,7 @@ resource "aws_instance" "this" {
     volume_size           = var.root_volume_specs.size
     volume_type           = var.root_volume_specs.type
     delete_on_termination = var.root_volume_specs.delete_on_termination
-    encrypted             = var.root_volume_specs.encrypted
+    encrypted             = true
     kms_key_id            = var.root_volume_specs.kms_key_id
     tags = merge(
       local.default_tags,
@@ -49,7 +54,7 @@ resource "aws_ebs_volume" "this" {
   availability_zone = aws_instance.this.availability_zone
   size              = each.value.size
   type              = each.value.type
-  encrypted         = each.value.encrypted
+  encrypted         = true
   kms_key_id        = each.value.kms_key_id
   iops              = each.value.iops
   throughput        = each.value.throughput

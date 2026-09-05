@@ -107,7 +107,6 @@ variable "root_volume_specs" {
     size                  = number
     type                  = optional(string, "gp3")
     delete_on_termination = bool
-    encrypted             = optional(bool, true)
     kms_key_id            = optional(string)
   })
 
@@ -115,7 +114,6 @@ variable "root_volume_specs" {
     size                  = 20
     type                  = "gp3"
     delete_on_termination = true
-    encrypted             = true
   }
 }
 
@@ -126,7 +124,6 @@ variable "data_volume_specs" {
     size                  = number
     type                  = optional(string, "gp3")
     delete_on_termination = optional(bool, true)
-    encrypted             = optional(bool, true)
     device_name           = string
     kms_key_id            = optional(string)
     iops                  = optional(number)
