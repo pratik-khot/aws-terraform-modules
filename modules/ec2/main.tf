@@ -32,7 +32,8 @@ resource "aws_instance" "this" {
     tags = merge(
       local.default_tags,
       {
-        Name = "${var.app_name}-${var.env}-${var.instance_no}"
+        Name          = "${var.app_name}-${var.env}-${var.instance_no}-root",
+        instance_name = "${var.app_name}-${var.env}-${var.instance_no}"
       },
       var.tags
     )
@@ -41,8 +42,7 @@ resource "aws_instance" "this" {
   tags = merge(
     local.default_tags,
     {
-      Name          = "${var.app_name}-${var.env}-${var.instance_no}",
-      instance_name = aws_instance.this.tags["Name"]
+      Name = "${var.app_name}-${var.env}-${var.instance_no}"
     },
     var.tags
   )
