@@ -11,7 +11,7 @@ output "eks_cluster_arn" {
 
 output "eks_cluster_sgs" {
   description = "Cluster security groups"
-  value       = aws_eks_cluster.this.vpc_config[0].security_group_ids
+  value       = aws_eks_cluster.this.vpc_config[0].security_group_id
 
 }
 
