@@ -24,6 +24,13 @@ resource "aws_instance" "this" {
     delete_on_termination = var.root_volume_specs.delete_on_termination
     encrypted             = var.root_volume_specs.encrypted
     kms_key_id            = var.root_volume_specs.kms_key_id
+    tags = merge(
+      local.default_tags,
+      {
+        Name = "${var.app_name}-${var.env}-${var.instance_no}"
+      },
+      var.tags
+    )
   }
 
   tags = merge(

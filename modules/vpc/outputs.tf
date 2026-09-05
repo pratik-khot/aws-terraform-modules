@@ -24,6 +24,6 @@ output "private_subnet_map" {
 }
 
 output "default_security_group_id" {
-  value       = aws_security_group.default.id
+  value       = aws_security_group.default[0].id
   description = "The ID of the default security group"
 }
