@@ -65,7 +65,8 @@ resource "aws_ebs_volume" "this" {
     {
       Name          = "${var.app_name}-${var.env}-${each.key}",
       instance_name = aws_instance.this.tags["Name"]
-    }
+    },
+    var.tags
   )
 }
 
