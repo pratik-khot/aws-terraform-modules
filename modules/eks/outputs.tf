@@ -52,3 +52,23 @@ output "load_balancer_controller_pod_identity_association_id" {
   description = "Pod Identity association ID for the AWS Load Balancer Controller."
   value       = try(aws_eks_pod_identity_association.lbc_pia[0].id, null)
 }
+
+output "external_dns_role_arn" {
+  description = "IAM role ARN used by the ExternalDNS Pod Identity association."
+  value       = try(aws_iam_role.external_dns[0].arn, null)
+}
+
+output "external_dns_pod_identity_association_id" {
+  description = "Pod Identity association ID for ExternalDNS."
+  value       = try(aws_eks_pod_identity_association.external_dns[0].id, null)
+}
+
+output "secrets_store_provider_role_arn" {
+  description = "IAM role ARN used by the AWS Secrets Store CSI provider Pod Identity association."
+  value       = try(aws_iam_role.secrets_store_provider[0].arn, null)
+}
+
+output "secrets_store_provider_pod_identity_association_id" {
+  description = "Pod Identity association ID for the AWS Secrets Store CSI provider."
+  value       = try(aws_eks_pod_identity_association.secrets_store_provider[0].id, null)
+}

@@ -158,3 +158,126 @@ resource "aws_eks_pod_identity_association" "lbc_pia" {
 
   depends_on = [aws_iam_role_policy_attachment.lbc_policy_attachment]
 }
+
+# Optional Pod Identity role for ExternalDNS.
+data "aws_iam_policy_document" "external_dns" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "route53:ListHostedZones",
+      "route53:ListHostedZonesByName"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "route53:ListResourceRecordSets"
+    ]
+    resources = var.external_dns_hosted_zone_arns
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "route53:ChangeResourceRecordSets"
+    ]
+    resources = var.external_dns_hosted_zone_arns
+  }
+}
+
+resource "aws_iam_role" "external_dns" {
+  count              = var.create_external_dns_role && var.eks_mode != "auto" ? 1 : 0
+  name               = "${aws_eks_cluster.this.name}-external-dns-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
+}
+
+resource "aws_iam_policy" "external_dns" {
+  count       = var.create_external_dns_role && var.eks_mode != "auto" ? 1 : 0
+  name        = "${aws_eks_cluster.this.name}-external-dns-policy"
+  description = "Policy for ExternalDNS to manage approved Route 53 hosted zones"
+  policy      = data.aws_iam_policy_document.external_dns.json
+
+  lifecycle {
+    precondition {
+      condition     = length(var.external_dns_hosted_zone_arns) > 0
+      error_message = "external_dns_hosted_zone_arns must contain at least one hosted-zone ARN when create_external_dns_role is true."
+    }
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "external_dns" {
+  count      = var.create_external_dns_role && var.eks_mode != "auto" ? 1 : 0
+  role       = aws_iam_role.external_dns[0].name
+  policy_arn = aws_iam_policy.external_dns[0].arn
+}
+
+resource "aws_eks_pod_identity_association" "external_dns" {
+  count           = var.create_external_dns_role && var.eks_mode != "auto" ? 1 : 0
+  cluster_name    = aws_eks_cluster.this.name
+  namespace       = "external-dns"
+  service_account = "external-dns"
+  role_arn        = aws_iam_role.external_dns[0].arn
+
+  depends_on = [aws_iam_role_policy_attachment.external_dns]
+}
+
+# Optional Pod Identity role for the AWS Secrets Store CSI provider.
+data "aws_iam_policy_document" "secrets_store_provider" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetSecretValue"
+    ]
+    resources = var.secrets_manager_secret_arns
+  }
+
+  dynamic "statement" {
+    for_each = length(var.secrets_manager_kms_key_arns) > 0 ? [1] : []
+    content {
+      effect = "Allow"
+      actions = [
+        "kms:Decrypt"
+      ]
+      resources = var.secrets_manager_kms_key_arns
+    }
+  }
+}
+
+resource "aws_iam_role" "secrets_store_provider" {
+  count              = var.create_secrets_store_provider_role && var.eks_mode != "auto" ? 1 : 0
+  name               = "${aws_eks_cluster.this.name}-secrets-store-provider-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
+}
+
+resource "aws_iam_policy" "secrets_store_provider" {
+  count       = var.create_secrets_store_provider_role && var.eks_mode != "auto" ? 1 : 0
+  name        = "${aws_eks_cluster.this.name}-secrets-store-provider-policy"
+  description = "Policy for the AWS Secrets Store CSI provider to read approved secrets"
+  policy      = data.aws_iam_policy_document.secrets_store_provider.json
+
+  lifecycle {
+    precondition {
+      condition     = length(var.secrets_manager_secret_arns) > 0
+      error_message = "secrets_manager_secret_arns must contain at least one secret ARN when create_secrets_store_provider_role is true."
+    }
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "secrets_store_provider" {
+  count      = var.create_secrets_store_provider_role && var.eks_mode != "auto" ? 1 : 0
+  role       = aws_iam_role.secrets_store_provider[0].name
+  policy_arn = aws_iam_policy.secrets_store_provider[0].arn
+}
+
+resource "aws_eks_pod_identity_association" "secrets_store_provider" {
+  count           = var.create_secrets_store_provider_role && var.eks_mode != "auto" ? 1 : 0
+  cluster_name    = aws_eks_cluster.this.name
+  namespace       = "kube-system"
+  service_account = "secrets-store-csi-driver-provider-aws"
+  role_arn        = aws_iam_role.secrets_store_provider[0].arn
+
+  depends_on = [aws_iam_role_policy_attachment.secrets_store_provider]
+}

@@ -215,6 +215,8 @@ module "eks" {
   auth_mode       = "API_AND_CONFIG_MAP"
   eks_mode        = "standard"
   create_lbc_role = false
+  create_external_dns_role = false
+  create_secrets_store_provider_role = false
 }
 ```
 
@@ -239,6 +241,11 @@ elastic load balancing and creates the corresponding AWS-managed IAM roles.
 | `fargate_namespace` | `string` | No | `"default"` | Kubernetes namespace | Namespace selected by the optional Fargate profile. | `"workloads"` |
 | `addons` | `map(any)` | No | `{}` | Add-on names; optional `version` per entry | Add-ons to merge with mode-specific defaults. | `{ coredns = { version = "v1.12.0-eksbuild.1" } }` |
 | `create_lbc_role` | `bool` | No | `false` | `true`, `false` | Creates the AWS Load Balancer Controller policy, role, and pod identity association in standard mode. | `true` |
+| `create_external_dns_role` | `bool` | No | `false` | `true`, `false` | Creates the ExternalDNS policy, role, and Pod Identity association in standard mode. | `true` |
+| `external_dns_hosted_zone_arns` | `list(string)` | No | `[]` | Route 53 hosted-zone ARNs | Limits ExternalDNS record changes to approved hosted zones. | `["arn:aws:route53:::hostedzone/Z123"]` |
+| `create_secrets_store_provider_role` | `bool` | No | `false` | `true`, `false` | Creates the Secrets Store CSI provider policy, role, and Pod Identity association in standard mode. | `true` |
+| `secrets_manager_secret_arns` | `list(string)` | No | `[]` | Secrets Manager secret ARNs | Limits CSI provider reads to approved secrets. | `["arn:aws:secretsmanager:us-east-1:123456789012:secret:app/*"]` |
+| `secrets_manager_kms_key_arns` | `list(string)` | No | `[]` | KMS key ARNs | Optional keys allowed for `kms:Decrypt`. | `["arn:aws:kms:us-east-1:123456789012:key/..."]` |
 
 Standard mode defaults to `coredns`, `kube-proxy`, `vpc-cni`,
 `eks-pod-identity-agent`, and `aws-ebs-csi-driver`. Auto Mode defaults to
@@ -246,11 +253,49 @@ Standard mode defaults to `coredns`, `kube-proxy`, `vpc-cni`,
 an omitted add-on version is resolved to the most recent version compatible
 with the cluster Kubernetes version.
 
+When enabled in standard mode, the controller integrations use EKS Pod
+Identity rather than IRSA annotations:
+
+| Integration | Namespace | ServiceAccount | Terraform switch |
+| --- | --- | --- | --- |
+| VPC CNI | `kube-system` | `aws-node` | Enabled when the `vpc-cni` add-on exists |
+| EBS CSI | `kube-system` | `ebs-csi-controller-sa` | Enabled when the `aws-ebs-csi-driver` add-on exists |
+| AWS Load Balancer Controller | `kube-system` | `aws-load-balancer-controller` | `create_lbc_role` |
+| ExternalDNS | `external-dns` | `external-dns` | `create_external_dns_role` |
+| AWS Secrets Store CSI provider | `kube-system` | `secrets-store-csi-driver-provider-aws` | `create_secrets_store_provider_role` |
+
+When either optional integration is enabled, provide its allowlist ARNs. The
+module stops during planning if ExternalDNS has no hosted-zone ARN or the CSI
+provider has no Secrets Manager secret ARN. KMS key ARNs are optional and are
+needed only when the secrets require customer-managed-key decryption.
+
+Example:
+
+```hcl
+create_external_dns_role = true
+external_dns_hosted_zone_arns = [
+  "arn:aws:route53:::hostedzone/Z1234567890"
+]
+
+create_secrets_store_provider_role = true
+secrets_manager_secret_arns = [
+  "arn:aws:secretsmanager:us-east-1:123456789012:secret:vote-app/*"
+]
+secrets_manager_kms_key_arns = [
+  "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+]
+```
+
 ### Outputs
 
 | Output | Description | Example |
 | --- | --- | --- |
-| `cluster_connection` | AWS CLI command that updates the local kubeconfig. | `terraform output -raw cluster_connection` |
+| `eks_cluster_connection` | AWS CLI command that updates the local kubeconfig. | `terraform output -raw eks_cluster_connection` |
+| `load_balancer_controller_role_arn` | AWS Load Balancer Controller IAM role ARN. | `terraform output load_balancer_controller_role_arn` |
+| `external_dns_role_arn` | ExternalDNS IAM role ARN. | `terraform output external_dns_role_arn` |
+| `external_dns_pod_identity_association_id` | ExternalDNS Pod Identity association ID. | `terraform output external_dns_pod_identity_association_id` |
+| `secrets_store_provider_role_arn` | Secrets Store CSI provider IAM role ARN. | `terraform output secrets_store_provider_role_arn` |
+| `secrets_store_provider_pod_identity_association_id` | Secrets Store CSI provider Pod Identity association ID. | `terraform output secrets_store_provider_pod_identity_association_id` |
 
 ### Variable Details
 
@@ -325,6 +370,37 @@ The explicit validation rules
 are `auth_mode` in `API_AND_CONFIG_MAP`, `API`, or `CONFIG_MAP`, and `eks_mode`
 in `standard` or `auto`. `create_lbc_role` is ignored for Auto Mode because
 Auto Mode manages load balancing through its own configuration.
+
+#### `create_external_dns_role`
+
+Description: Creates the ExternalDNS IAM role, policy, and EKS Pod Identity
+association in standard mode. Type: `bool`. Default: `false`. Set this to
+`true` together with `external_dns_hosted_zone_arns` when the GitOps ExternalDNS
+Application is enabled. The association targets `external-dns/external-dns`.
+
+#### `external_dns_hosted_zone_arns`
+
+Description: Route 53 hosted-zone ARNs that ExternalDNS may manage. Type:
+`list(string)`. Default: `[]`. Record changes are restricted to these ARNs;
+the module requires at least one ARN when `create_external_dns_role` is true.
+
+#### `create_secrets_store_provider_role`
+
+Description: Creates the AWS Secrets Store CSI provider IAM role, policy, and
+EKS Pod Identity association in standard mode. Type: `bool`. Default: `false`.
+The association targets `kube-system/secrets-store-csi-driver-provider-aws`.
+
+#### `secrets_manager_secret_arns`
+
+Description: Secrets Manager secret ARNs the CSI provider may read. Type:
+`list(string)`. Default: `[]`. The module requires at least one ARN when
+`create_secrets_store_provider_role` is true.
+
+#### `secrets_manager_kms_key_arns`
+
+Description: Optional KMS key ARNs allowed for `kms:Decrypt`. Type:
+`list(string)`. Default: `[]`. Use this when the approved Secrets Manager
+secrets are encrypted with customer-managed KMS keys.
 
 ## EC2 Module
 

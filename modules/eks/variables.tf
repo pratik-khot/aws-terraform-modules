@@ -64,3 +64,33 @@ variable "create_lbc_role" {
   type        = bool
   default     = false
 }
+
+variable "create_external_dns_role" {
+  description = "Whether to create the IAM role, policy, and Pod Identity association for ExternalDNS."
+  type        = bool
+  default     = false
+}
+
+variable "external_dns_hosted_zone_arns" {
+  description = "Route 53 hosted-zone ARNs that ExternalDNS may manage."
+  type        = list(string)
+  default     = []
+}
+
+variable "create_secrets_store_provider_role" {
+  description = "Whether to create the IAM role, policy, and Pod Identity association for the AWS Secrets Store CSI provider."
+  type        = bool
+  default     = false
+}
+
+variable "secrets_manager_secret_arns" {
+  description = "Secrets Manager secret ARNs that the AWS Secrets Store CSI provider may read."
+  type        = list(string)
+  default     = []
+}
+
+variable "secrets_manager_kms_key_arns" {
+  description = "KMS key ARNs that the AWS Secrets Store CSI provider may use for decrypting secrets."
+  type        = list(string)
+  default     = []
+}
