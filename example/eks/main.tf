@@ -4,6 +4,7 @@ module "my-eks" {
   auth_mode                          = var.auth_mode
   region                             = var.region
   cluster_version                    = var.cluster_version
+  node_group_scaling                 = var.node_group_scaling
   subnet_ids                         = data.terraform_remote_state.vpc.outputs.private_subnet_ids
   create_lbc_role                    = var.create_lbc_role
   create_external_dns_role           = var.create_external_dns_role

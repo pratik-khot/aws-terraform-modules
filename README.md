@@ -212,6 +212,11 @@ module "eks" {
   cluster_version = "1.36"
   region          = "us-east-1"
   subnet_ids      = module.vpc.private_subnet_ids
+  node_group_scaling = {
+    desired_size = 3
+    max_size     = 5
+    min_size     = 1
+  }
   auth_mode       = "API_AND_CONFIG_MAP"
   eks_mode        = "standard"
   create_lbc_role = false
@@ -233,6 +238,7 @@ elastic load balancing and creates the corresponding AWS-managed IAM roles.
 | `cluster_name` | `string` | Yes | N/A | AWS/EKS naming rules | EKS cluster name and prefix for IAM and node-group resources. | `"platform-eks"` |
 | `cluster_version` | `string` | No | `"1.36"` | EKS-supported Kubernetes version | Kubernetes version for the control plane and add-on lookup. | `"1.35"` |
 | `subnet_ids` | `list(string)` | Yes | N/A | Existing subnet IDs | Subnets for the EKS control plane and standard nodes/Fargate. | `module.vpc.private_subnet_ids` |
+| `node_group_scaling` | `object` | No | `{ desired_size = 3, max_size = 5, min_size = 1 }` | `min <= desired <= max` | Scaling configuration for the standard managed node group. | `{ desired_size = 3, max_size = 5, min_size = 1 }` |
 | `region` | `string` | Yes | N/A | Any AWS region | AWS region used by the cluster connection command. | `"us-east-1"` |
 | `creator_admin_permissions` | `bool` | No | `true` | `true`, `false` | Grants the cluster creator bootstrap administrator permissions. | `false` |
 | `auth_mode` | `string` | No | `"API_AND_CONFIG_MAP"` | `API_AND_CONFIG_MAP`, `API`, `CONFIG_MAP` | EKS authentication mode. | `"API"` |
@@ -316,6 +322,13 @@ features, add-on compatibility, and upgrade planning.
 Description: Subnets for EKS resources. Type: `list(string)`. Required. Example:
 `subnet_ids = module.vpc.private_subnet_ids`. Business impact: determines
 cluster placement and workload network reachability.
+
+#### `node_group_scaling`
+
+Description: Scaling configuration for the standard EKS managed node group.
+Type: `object` with `desired_size`, `max_size`, and `min_size` numbers. Default:
+`desired_size = 3`, `max_size = 5`, `min_size = 1`. The module validates that
+`min_size >= 1`, `min_size <= desired_size`, and `desired_size <= max_size`.
 
 #### `region`
 

@@ -9,6 +9,19 @@ variable "cluster_version" {
   type        = string
 }
 
+variable "node_group_scaling" {
+  type = object({
+    desired_size = number
+    max_size     = number
+    min_size     = number
+  })
+  default = {
+    desired_size = 3
+    max_size     = 5
+    min_size     = 1
+  }
+}
+
 variable "auth_mode" {
   description = "The authentication mode for the EKS cluster."
   type        = string

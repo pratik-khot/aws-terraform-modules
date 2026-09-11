@@ -14,6 +14,29 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
+variable "node_group_scaling" {
+  description = "Scaling configuration for the standard EKS managed node group."
+  type = object({
+    desired_size = number
+    max_size     = number
+    min_size     = number
+  })
+  default = {
+    desired_size = 3
+    max_size     = 5
+    min_size     = 1
+  }
+
+  validation {
+    condition = (
+      var.node_group_scaling.min_size >= 1 &&
+      var.node_group_scaling.min_size <= var.node_group_scaling.desired_size &&
+      var.node_group_scaling.desired_size <= var.node_group_scaling.max_size
+    )
+    error_message = "node_group_scaling must satisfy min_size >= 1, min_size <= desired_size, and desired_size <= max_size."
+  }
+}
+
 variable "region" {
   description = "The AWS region where the EKS cluster will be created."
   type        = string
