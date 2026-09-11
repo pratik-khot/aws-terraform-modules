@@ -239,6 +239,8 @@ elastic load balancing and creates the corresponding AWS-managed IAM roles.
 | `cluster_version` | `string` | No | `"1.36"` | EKS-supported Kubernetes version | Kubernetes version for the control plane and add-on lookup. | `"1.35"` |
 | `subnet_ids` | `list(string)` | Yes | N/A | Existing subnet IDs | Subnets for the EKS control plane and standard nodes/Fargate. | `module.vpc.private_subnet_ids` |
 | `node_group_scaling` | `object` | No | `{ desired_size = 3, max_size = 5, min_size = 1 }` | `min <= desired <= max` | Scaling configuration for the standard managed node group. | `{ desired_size = 3, max_size = 5, min_size = 1 }` |
+| `node_instance_types` | `list(string)` | No | `["t3.medium"]` | EC2 instance types | Instance types for the standard managed node group. | `["t3.large"]` |
+| `node_disk_size` | `number` | No | `100` | GiB | Root disk size for standard managed node-group nodes. | `100` |
 | `region` | `string` | Yes | N/A | Any AWS region | AWS region used by the cluster connection command. | `"us-east-1"` |
 | `creator_admin_permissions` | `bool` | No | `true` | `true`, `false` | Grants the cluster creator bootstrap administrator permissions. | `false` |
 | `auth_mode` | `string` | No | `"API_AND_CONFIG_MAP"` | `API_AND_CONFIG_MAP`, `API`, `CONFIG_MAP` | EKS authentication mode. | `"API"` |
@@ -329,6 +331,16 @@ Description: Scaling configuration for the standard EKS managed node group.
 Type: `object` with `desired_size`, `max_size`, and `min_size` numbers. Default:
 `desired_size = 3`, `max_size = 5`, `min_size = 1`. The module validates that
 `min_size >= 1`, `min_size <= desired_size`, and `desired_size <= max_size`.
+
+#### `node_instance_types`
+
+Description: EC2 instance types for the standard managed node group. Type:
+`list(string)`. Default: `["t3.medium"]`. Auto Mode ignores this input.
+
+#### `node_disk_size`
+
+Description: Root disk size in GiB for standard managed node-group nodes. Type:
+`number`. Default: `100`. Auto Mode ignores this input.
 
 #### `region`
 

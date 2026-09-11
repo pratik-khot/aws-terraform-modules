@@ -117,3 +117,15 @@ variable "secrets_manager_kms_key_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "node_instance_types" {
+  description = "The instance types for the EKS node group."
+  type        = list(string)
+  default     = ["t3.medium"]
+}
+
+variable "node_disk_size" {
+  description = "The disk size for the EKS node group instances."
+  type        = number
+  default     = 100
+}

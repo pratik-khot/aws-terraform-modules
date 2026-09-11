@@ -62,3 +62,13 @@ variable "secrets_manager_kms_key_arns" {
   type    = list(string)
   default = []
 }
+
+variable "node_instance_types" {
+  type    = list(string)
+  default = ["t3.medium"]
+}
+
+variable "node_disk_size" {
+  type    = number
+  default = 100
+}

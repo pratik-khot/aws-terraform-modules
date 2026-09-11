@@ -4,6 +4,8 @@ resource "aws_eks_node_group" "this" {
   node_group_name = "${var.cluster_name}-node-group"
   node_role_arn   = aws_iam_role.node_group_role.arn
   subnet_ids      = var.subnet_ids
+  instance_types  = var.node_instance_types
+  disk_size       = var.node_disk_size
 
   scaling_config {
     desired_size = var.node_group_scaling.desired_size
