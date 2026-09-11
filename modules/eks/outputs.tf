@@ -32,3 +32,23 @@ output "eks_cluster_certificate_authority_data" {
 output "eks_cluster_name" {
   value = aws_eks_cluster.this.name
 }
+
+output "load_balancer_controller_role_arn" {
+  description = "IAM role ARN used by the AWS Load Balancer Controller."
+  value       = try(aws_iam_role.load_balancer_controller[0].arn, null)
+}
+
+output "vpc_cni_role_arn" {
+  description = "IAM role ARN used by the VPC CNI Pod Identity association."
+  value       = try(aws_iam_role.vpc_cni[0].arn, null)
+}
+
+output "ebs_csi_role_arn" {
+  description = "IAM role ARN used by the EBS CSI Pod Identity association."
+  value       = try(aws_iam_role.ebs_csi[0].arn, null)
+}
+
+output "load_balancer_controller_pod_identity_association_id" {
+  description = "Pod Identity association ID for the AWS Load Balancer Controller."
+  value       = try(aws_eks_pod_identity_association.lbc_pia[0].id, null)
+}
