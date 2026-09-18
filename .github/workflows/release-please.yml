@@ -1,0 +1,43 @@
+name: Release Please
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      release-created: ${{ steps.create-release.outputs.release_created }}
+      tag-name: ${{ steps.create-release.outputs.tag_name }}
+      html-url: ${{ steps.create-release.outputs.html_url }}
+      major: ${{ steps.version.outputs.major }}
+      minor: ${{ steps.version.outputs.minor }}
+      patch: ${{ steps.version.outputs.patch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - id: create-release
+        uses: googleapis/release-please-action@v4
+        with:
+          release-type: terraform-module
+          package-name: myapp
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+
+      - name: Extract version parts
+        id: version
+        if: steps.create-release.outputs.release_created == 'true'
+        shell: bash
+        run: |
+          VERSION="${{ steps.create-release.outputs.tag_name }}"
+          VERSION="${VERSION#v}"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
+          echo "patch=$PATCH" >> "$GITHUB_OUTPUT"
