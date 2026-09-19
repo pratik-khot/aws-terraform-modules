@@ -42,7 +42,7 @@ are tagged for AWS Load Balancer Controller discovery.
 - Terraform `>= 1.9.0`
 - AWS provider `~> 6.0`
 - AWS credentials with permissions for the resources selected by each module
-- An AWS region with enough available AZs for `az_count`
+- An AWS region with the AZ names supplied through `availability_zone_names`
 
 The version constraints are declared in [`modules/vpc/version.tf`](modules/vpc/version.tf).
 Initialize and validate from the root directory of the configuration that calls
@@ -95,6 +95,7 @@ module "vpc" {
   region                = "us-east-1"
   vpc_cidr              = "10.0.0.0/16"
   az_count              = 3
+  availability_zone_names = ["us-east-1a", "us-east-1b", "us-east-1c"]
   subnet_newbits        = 8
   nat_availability_mode = "zonal"
   environment           = "dev"
@@ -117,6 +118,7 @@ production workloads.
 | --- | --- | --- | --- | --- | --- | --- |
 | `vpc_cidr` | `string` | No | `"10.0.0.0/16"` | Valid IPv4 CIDR | VPC address range used to calculate subnet CIDRs. | `"10.20.0.0/16"` |
 | `az_count` | `number` | No | `3` | Available AZ count or fewer | Number of available AZs to use. | `3` |
+| `availability_zone_names` | `list(string)` | Yes | N/A | Existing AZ names | Ordered AZ allowlist used to keep subnet placement stable. Provide at least `az_count` names. | `["us-east-1a", "us-east-1b", "us-east-1c"]` |
 | `subnet_newbits` | `number` | No | `8` | Valid `cidrsubnet` width | Number of bits added when deriving public and private subnets. | `8` |
 | `region` | `string` | No | `"us-east-1"` | Any AWS region | AWS region for the VPC resources. | `"eu-west-1"` |
 | `nat_availability_mode` | `string` | No | `"zonal"` | `zonal`, `regional` | NAT gateway availability mode. | `"regional"` |
@@ -150,6 +152,15 @@ impact: determines the private address capacity of the network.
 Description: Number of available AZs to use. Type: `number`. Default: `3`.
 Example: `az_count = 3`. Business impact: controls resilience and the number
 of public/private subnet pairs.
+
+#### `availability_zone_names`
+
+Description: Ordered list of AZ names used for subnet placement. Type:
+`list(string)`. Required. Example:
+`availability_zone_names = ["us-east-1a", "us-east-1b", "us-east-1c"]`.
+Business impact: pins subnet placement so adding a new AWS Availability Zone
+does not silently change which zones are selected. The list must contain at
+least `az_count` names.
 
 #### `subnet_newbits`
 
@@ -794,7 +805,7 @@ environment   = "prod"
 | Missing required variables | EKS requires `cluster_name`, `subnet_ids`, and `region`. Confirm the caller passes valid values. |
 | Invalid mode or authentication value | Use only the validated `nat_availability_mode`, `auth_mode`, and `eks_mode` values listed above. |
 | Provider authentication failure | Check the selected AWS profile/role, region, credentials, and IAM permissions. |
-| Too few availability zones | Lower `az_count` or choose a region with enough available AZs. |
+| Too few availability zones | Lower `az_count`, provide more valid names in `availability_zone_names`, or choose a region with enough available AZs. |
 | CIDR or subnet creation failure | Confirm `vpc_cidr` and `subnet_newbits` produce non-overlapping valid CIDRs. |
 | EKS add-on version failure | Confirm the add-on is supported for `cluster_version`; omit `version` to use the latest compatible version. |
 | EKS or Fargate placement failure | Confirm `subnet_ids` are in the target region and have the required routing and IAM permissions. |
