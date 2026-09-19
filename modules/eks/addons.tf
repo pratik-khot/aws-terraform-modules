@@ -1,4 +1,7 @@
-
+# ---------------------------------------------------------------------------
+# EKS addon resources
+# Purpose: install and configure the AWS-managed addons enabled for this cluster.
+# ---------------------------------------------------------------------------
 # Install and configure the enabled EKS managed addons.
 resource "aws_eks_addon" "addons" {
   for_each = local.addons

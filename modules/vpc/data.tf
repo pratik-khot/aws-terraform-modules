@@ -1,4 +1,7 @@
-# Data sources discover the AWS availability zones used by this module.
+# ---------------------------------------------------------------------------
+# VPC module data sources
+# Purpose: discover the AWS AZs available for subnet placement.
+# ---------------------------------------------------------------------------
 data "aws_availability_zones" "available" {
   state = "available"
 }

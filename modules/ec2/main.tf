@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# EC2 module resources
+# Purpose: create the instance, root volume, and optional data disks.
+# ---------------------------------------------------------------------------
 # Primary EC2 instance.
 resource "aws_instance" "this" {
 

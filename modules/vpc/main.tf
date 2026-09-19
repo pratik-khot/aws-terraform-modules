@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# VPC module resources
+# Purpose: create the VPC, subnets, routing, NAT, and public/private network access.
+# ---------------------------------------------------------------------------
 # VPC network container.
 resource "aws_vpc" "main" {
   cidr_block       = var.vpc_cidr
