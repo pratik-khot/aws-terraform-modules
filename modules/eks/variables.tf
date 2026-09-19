@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# EKS module variables
+# Purpose: define the inputs used to configure the EKS cluster, IAM, and addons.
+# ---------------------------------------------------------------------------
 variable "cluster_name" {
   description = "The name of the EKS cluster."
   type        = string
@@ -128,4 +132,16 @@ variable "node_disk_size" {
   description = "The disk size for the EKS node group instances."
   type        = number
   default     = 100
+}
+
+variable "use_karpenter" {
+  description = "Whether to create the IAM roles for Karpenter."
+  type        = bool
+  default     = false
+}
+
+variable "tags" {
+  description = "A map of tags to apply to all resources in the EKS module."
+  type        = map(string)
+  default     = {}
 }

@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# EKS module data sources
+# Purpose: define pod-identity trust policy and resolve compatible addon versions.
+# ---------------------------------------------------------------------------
 # Trust policy used by EKS pod identity roles.
 data "aws_iam_policy_document" "assume_role_policy" {
   statement {

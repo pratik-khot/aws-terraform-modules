@@ -10,6 +10,16 @@ variable "az_count" {
   default     = 3
 }
 
+variable "availability_zone_names" {
+  description = "Ordered list of availability zone names to pin for subnet placement."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.availability_zone_names) >= var.az_count
+    error_message = "availability_zone_names must contain at least az_count availability zones."
+  }
+}
+
 variable "subnet_newbits" {
   description = "The number of new bits to use for subnetting"
   type        = number

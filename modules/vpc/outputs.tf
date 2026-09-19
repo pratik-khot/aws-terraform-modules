@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# VPC module outputs
+# Purpose: export the network IDs and subnet maps required by dependent modules.
+# ---------------------------------------------------------------------------
 output "vpc_id" {
   value       = aws_vpc.main.id
   description = "The ID of the VPC"

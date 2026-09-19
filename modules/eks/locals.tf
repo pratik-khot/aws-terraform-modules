@@ -1,10 +1,13 @@
+# ---------------------------------------------------------------------------
+# EKS module locals
+# Purpose: define the default tags and supported addon set for this EKS module.
+# ---------------------------------------------------------------------------
 locals {
 
   # Tags shared by resources in this EKS module.
-  common_tags = {
+  common_tags = merge({
     managed_by = "terraform"
-
-  }
+  }, var.tags)
 
   # Select AWS-managed addons based on the EKS operating mode.
   default_addons = var.eks_mode == "auto" ? {

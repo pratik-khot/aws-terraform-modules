@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# VPC module locals
+# Purpose: compute AZ slices, subnet CIDRs, and shared tag values used by VPC resources.
+# ---------------------------------------------------------------------------
 locals {
   # Availability zones and CIDR ranges used by the subnet resources.
   azs             = slice(data.aws_availability_zones.available.names, 0, var.az_count)

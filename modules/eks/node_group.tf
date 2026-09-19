@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# Standard node group resources
+# Purpose: create the managed EC2 node group used in standard EKS mode.
+# ---------------------------------------------------------------------------
 # Managed EC2 worker node group for standard EKS mode.
 resource "aws_eks_node_group" "this" {
   cluster_name    = aws_eks_cluster.this.name

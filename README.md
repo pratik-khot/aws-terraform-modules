@@ -6,6 +6,12 @@ VPC, an EC2 instance with EBS storage, and an Amazon EKS cluster. The modules
 are designed to be composed: create the VPC first, then pass its private subnet
 IDs to EKS or EC2 workloads.
 
+## Release Status
+
+The current repository version is **0.1.0**, matching the Release Please
+manifest and changelog. The `v1.0.0` references below are illustrative future
+release tags; use an existing tag or commit when consuming the modules today.
+
 ## Features
 
 - Multi-AZ VPCs with public and private subnets, internet/NAT routing, and VPC Flow Logs.
@@ -13,6 +19,8 @@ IDs to EKS or EC2 workloads.
 - EKS standard managed node groups or EKS Auto Mode.
 - EKS managed add-ons with automatic compatible-version discovery and pod identity for CNI and EBS CSI.
 - Optional EKS Fargate profile and AWS Load Balancer Controller IAM resources.
+- Optional Karpenter controller and node IAM roles, EC2 instance profile, and EKS Pod Identity association.
+- Karpenter interruption handling through an encrypted SQS queue and EventBridge rules for AWS Health, Spot interruption, rebalance, and instance-state events.
 - EC2 instances with configurable networking, monitoring, termination protection, root disks, and attached data disks.
 - Consistent Terraform-managed and environment-aware tags.
 
@@ -34,7 +42,7 @@ are tagged for AWS Load Balancer Controller discovery.
 - Terraform `>= 1.9.0`
 - AWS provider `~> 6.0`
 - AWS credentials with permissions for the resources selected by each module
-- An AWS region with enough available AZs for `az_count`
+- An AWS region with the AZ names supplied through `availability_zone_names`
 
 The version constraints are declared in [`modules/vpc/version.tf`](modules/vpc/version.tf).
 Initialize and validate from the root directory of the configuration that calls
@@ -87,6 +95,7 @@ module "vpc" {
   region                = "us-east-1"
   vpc_cidr              = "10.0.0.0/16"
   az_count              = 3
+  availability_zone_names = ["us-east-1a", "us-east-1b", "us-east-1c"]
   subnet_newbits        = 8
   nat_availability_mode = "zonal"
   environment           = "dev"
@@ -109,6 +118,7 @@ production workloads.
 | --- | --- | --- | --- | --- | --- | --- |
 | `vpc_cidr` | `string` | No | `"10.0.0.0/16"` | Valid IPv4 CIDR | VPC address range used to calculate subnet CIDRs. | `"10.20.0.0/16"` |
 | `az_count` | `number` | No | `3` | Available AZ count or fewer | Number of available AZs to use. | `3` |
+| `availability_zone_names` | `list(string)` | Yes | N/A | Existing AZ names | Ordered AZ allowlist used to keep subnet placement stable. Provide at least `az_count` names. | `["us-east-1a", "us-east-1b", "us-east-1c"]` |
 | `subnet_newbits` | `number` | No | `8` | Valid `cidrsubnet` width | Number of bits added when deriving public and private subnets. | `8` |
 | `region` | `string` | No | `"us-east-1"` | Any AWS region | AWS region for the VPC resources. | `"eu-west-1"` |
 | `nat_availability_mode` | `string` | No | `"zonal"` | `zonal`, `regional` | NAT gateway availability mode. | `"regional"` |
@@ -142,6 +152,15 @@ impact: determines the private address capacity of the network.
 Description: Number of available AZs to use. Type: `number`. Default: `3`.
 Example: `az_count = 3`. Business impact: controls resilience and the number
 of public/private subnet pairs.
+
+#### `availability_zone_names`
+
+Description: Ordered list of AZ names used for subnet placement. Type:
+`list(string)`. Required. Example:
+`availability_zone_names = ["us-east-1a", "us-east-1b", "us-east-1c"]`.
+Business impact: pins subnet placement so adding a new AWS Availability Zone
+does not silently change which zones are selected. The list must contain at
+least `az_count` names.
 
 #### `subnet_newbits`
 
@@ -222,6 +241,7 @@ module "eks" {
   create_lbc_role = false
   create_external_dns_role = false
   create_secrets_store_provider_role = false
+  use_karpenter   = true
 }
 ```
 
@@ -230,6 +250,17 @@ scheduler control-plane logs and enables both private and public API endpoints.
 Standard mode creates a managed node group with desired size 2, minimum 1, and
 maximum 3. Auto Mode enables general-purpose node pools, block storage, and
 elastic load balancing and creates the corresponding AWS-managed IAM roles.
+
+Karpenter is available for `eks_mode = "standard"`. When `use_karpenter` is
+`true`, the module creates a controller role using EKS Pod Identity, a node
+role with the required AWS-managed worker policies, an EC2 instance profile,
+and an encrypted SQS interruption queue. EventBridge rules forward AWS Health,
+EC2 Spot interruption, EC2 rebalance, and EC2 instance-state events to that
+queue so Karpenter can react to capacity interruptions.
+
+Karpenter resources are not created in EKS Auto Mode. Install and configure
+the Karpenter Helm chart and its `NodePool`/`EC2NodeClass` resources separately;
+this module provides the AWS infrastructure and IAM resources they depend on.
 
 ### Inputs
 
@@ -254,6 +285,7 @@ elastic load balancing and creates the corresponding AWS-managed IAM roles.
 | `create_secrets_store_provider_role` | `bool` | No | `false` | `true`, `false` | Creates the Secrets Store CSI provider policy, role, and Pod Identity association in standard mode. | `true` |
 | `secrets_manager_secret_arns` | `list(string)` | No | `[]` | Secrets Manager secret ARNs | Limits CSI provider reads to approved secrets. | `["arn:aws:secretsmanager:us-east-1:123456789012:secret:app/*"]` |
 | `secrets_manager_kms_key_arns` | `list(string)` | No | `[]` | KMS key ARNs | Optional keys allowed for `kms:Decrypt`. | `["arn:aws:kms:us-east-1:123456789012:key/..."]` |
+| `use_karpenter` | `bool` | No | `false` | `true`, `false` | Creates Karpenter IAM, instance profile, SQS, and EventBridge resources in standard mode. | `true` |
 
 Standard mode defaults to `coredns`, `kube-proxy`, `vpc-cni`,
 `eks-pod-identity-agent`, and `aws-ebs-csi-driver`. Auto Mode defaults to
@@ -304,6 +336,16 @@ secrets_manager_kms_key_arns = [
 | `external_dns_pod_identity_association_id` | ExternalDNS Pod Identity association ID. | `terraform output external_dns_pod_identity_association_id` |
 | `secrets_store_provider_role_arn` | Secrets Store CSI provider IAM role ARN. | `terraform output secrets_store_provider_role_arn` |
 | `secrets_store_provider_pod_identity_association_id` | Secrets Store CSI provider Pod Identity association ID. | `terraform output secrets_store_provider_pod_identity_association_id` |
+| `karpenter_controller_role_arn` | Karpenter controller IAM role ARN. | `terraform output karpenter_controller_role_arn` |
+| `karpenter_controller_pod_identity_association_id` | Karpenter controller Pod Identity association ID. | `terraform output karpenter_controller_pod_identity_association_id` |
+| `karpenter_node_role_arn` | Karpenter node IAM role ARN. | `terraform output karpenter_node_role_arn` |
+| `karpenter_node_instance_profile_name` | Karpenter node EC2 instance profile name. | `terraform output karpenter_node_instance_profile_name` |
+| `karpenter_interruption_queue_arn` | Karpenter interruption SQS queue ARN. | `terraform output karpenter_interruption_queue_arn` |
+| `karpenter_interruption_queue_url` | Karpenter interruption SQS queue URL. | `terraform output karpenter_interruption_queue_url` |
+| `karpenter_health_event_rule_arn` | AWS Health EventBridge rule ARN. | `terraform output karpenter_health_event_rule_arn` |
+| `karpenter_spot_interrupt_rule_arn` | EC2 Spot interruption EventBridge rule ARN. | `terraform output karpenter_spot_interrupt_rule_arn` |
+| `karpenter_rebalance_rule_arn` | EC2 rebalance EventBridge rule ARN. | `terraform output karpenter_rebalance_rule_arn` |
+| `karpenter_instance_state_rule_arn` | EC2 instance-state EventBridge rule ARN. | `terraform output karpenter_instance_state_rule_arn` |
 
 ### Variable Details
 
@@ -426,6 +468,31 @@ Description: Secrets Manager secret ARNs the CSI provider may read. Type:
 Description: Optional KMS key ARNs allowed for `kms:Decrypt`. Type:
 `list(string)`. Default: `[]`. Use this when the approved Secrets Manager
 secrets are encrypted with customer-managed KMS keys.
+
+#### `use_karpenter`
+
+Description: Creates the AWS resources required by Karpenter. Type: `bool`.
+Default: `false`. Example: `use_karpenter = true`. Business impact: enables
+dynamic node provisioning support and interruption handling. This input is
+ignored when `eks_mode = "auto"`.
+
+### Karpenter Example
+
+```hcl
+module "eks" {
+  source        = "git::https://github.com/pratik-khot/aws-terraform-modules.git//modules/eks?ref=v1.0.0"
+  cluster_name  = "platform-eks"
+  region        = "us-east-1"
+  subnet_ids    = module.vpc.private_subnet_ids
+  eks_mode      = "standard"
+  use_karpenter = true
+}
+```
+
+Use `karpenter_controller_role_arn`, `karpenter_node_role_arn`, and
+`karpenter_node_instance_profile_name` when configuring the Karpenter Helm
+chart and `EC2NodeClass`. The `karpenter_interruption_queue_arn` output
+identifies the queue used for interruption handling.
 
 ## EC2 Module
 
@@ -738,7 +805,7 @@ environment   = "prod"
 | Missing required variables | EKS requires `cluster_name`, `subnet_ids`, and `region`. Confirm the caller passes valid values. |
 | Invalid mode or authentication value | Use only the validated `nat_availability_mode`, `auth_mode`, and `eks_mode` values listed above. |
 | Provider authentication failure | Check the selected AWS profile/role, region, credentials, and IAM permissions. |
-| Too few availability zones | Lower `az_count` or choose a region with enough available AZs. |
+| Too few availability zones | Lower `az_count`, provide more valid names in `availability_zone_names`, or choose a region with enough available AZs. |
 | CIDR or subnet creation failure | Confirm `vpc_cidr` and `subnet_newbits` produce non-overlapping valid CIDRs. |
 | EKS add-on version failure | Confirm the add-on is supported for `cluster_version`; omit `version` to use the latest compatible version. |
 | EKS or Fargate placement failure | Confirm `subnet_ids` are in the target region and have the required routing and IAM permissions. |
