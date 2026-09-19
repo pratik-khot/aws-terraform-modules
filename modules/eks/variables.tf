@@ -140,12 +140,6 @@ variable "use_karpenter" {
   default     = false
 }
 
-variable "karpenter_interruption_queue_arn" {
-  description = "Optional SQS queue ARN used for Karpenter interruption handling."
-  type        = string
-  default     = null
-}
-
 variable "tags" {
   description = "A map of tags to apply to all resources in the EKS module."
   type        = map(string)
