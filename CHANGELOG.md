@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.0...v0.2.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* release module updates ([1efd012](https://github.com/pratik-khot/aws-terraform-modules/commit/1efd012cbc1e5aa16305d3c507d09e91d7be4f1d))
+
 ## [0.2.0](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.1.0...v0.2.0) (2026-09-19)
 
 
