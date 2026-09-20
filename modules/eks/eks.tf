@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# EKS cluster resources
+# Purpose: create the control plane and wire cluster networking and access settings.
+# ---------------------------------------------------------------------------
 # EKS control plane and its network configuration.
 resource "aws_eks_cluster" "this" {
   name                          = var.cluster_name

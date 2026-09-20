@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# EKS IAM resources
+# Purpose: create cluster, addon, and Karpenter IAM roles and their policy attachments.
+# ---------------------------------------------------------------------------
 # IAM role assumed by the EKS control plane.
 resource "aws_iam_role" "eks_cluster" {
   name = "${var.cluster_name}-eks-cluster-role"
@@ -188,13 +192,13 @@ data "aws_iam_policy_document" "external_dns" {
 }
 
 resource "aws_iam_role" "external_dns" {
-  count              = var.create_external_dns_role && var.eks_mode != "auto" ? 1 : 0
+  count              = var.create_external_dns_role ? 1 : 0
   name               = "${aws_eks_cluster.this.name}-external-dns-role"
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 }
 
 resource "aws_iam_policy" "external_dns" {
-  count       = var.create_external_dns_role && var.eks_mode != "auto" ? 1 : 0
+  count       = var.create_external_dns_role ? 1 : 0
   name        = "${aws_eks_cluster.this.name}-external-dns-policy"
   description = "Policy for ExternalDNS to manage approved Route 53 hosted zones"
   policy      = data.aws_iam_policy_document.external_dns.json
@@ -208,13 +212,13 @@ resource "aws_iam_policy" "external_dns" {
 }
 
 resource "aws_iam_role_policy_attachment" "external_dns" {
-  count      = var.create_external_dns_role && var.eks_mode != "auto" ? 1 : 0
+  count      = var.create_external_dns_role ? 1 : 0
   role       = aws_iam_role.external_dns[0].name
   policy_arn = aws_iam_policy.external_dns[0].arn
 }
 
 resource "aws_eks_pod_identity_association" "external_dns" {
-  count           = var.create_external_dns_role && var.eks_mode != "auto" ? 1 : 0
+  count           = var.create_external_dns_role ? 1 : 0
   cluster_name    = aws_eks_cluster.this.name
   namespace       = "external-dns"
   service_account = "external-dns"
@@ -247,13 +251,13 @@ data "aws_iam_policy_document" "secrets_store_provider" {
 }
 
 resource "aws_iam_role" "secrets_store_provider" {
-  count              = var.create_secrets_store_provider_role && var.eks_mode != "auto" ? 1 : 0
+  count              = var.create_secrets_store_provider_role ? 1 : 0
   name               = "${aws_eks_cluster.this.name}-secrets-store-provider-role"
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 }
 
 resource "aws_iam_policy" "secrets_store_provider" {
-  count       = var.create_secrets_store_provider_role && var.eks_mode != "auto" ? 1 : 0
+  count       = var.create_secrets_store_provider_role ? 1 : 0
   name        = "${aws_eks_cluster.this.name}-secrets-store-provider-policy"
   description = "Policy for the AWS Secrets Store CSI provider to read approved secrets"
   policy      = data.aws_iam_policy_document.secrets_store_provider.json
@@ -267,17 +271,83 @@ resource "aws_iam_policy" "secrets_store_provider" {
 }
 
 resource "aws_iam_role_policy_attachment" "secrets_store_provider" {
-  count      = var.create_secrets_store_provider_role && var.eks_mode != "auto" ? 1 : 0
+  count      = var.create_secrets_store_provider_role ? 1 : 0
   role       = aws_iam_role.secrets_store_provider[0].name
   policy_arn = aws_iam_policy.secrets_store_provider[0].arn
 }
 
 resource "aws_eks_pod_identity_association" "secrets_store_provider" {
-  count           = var.create_secrets_store_provider_role && var.eks_mode != "auto" ? 1 : 0
+  count           = var.create_secrets_store_provider_role ? 1 : 0
   cluster_name    = aws_eks_cluster.this.name
   namespace       = "kube-system"
   service_account = "secrets-store-csi-driver-provider-aws"
   role_arn        = aws_iam_role.secrets_store_provider[0].arn
 
   depends_on = [aws_iam_role_policy_attachment.secrets_store_provider]
+}
+
+
+resource "aws_iam_policy" "karpenter_controller" {
+  count       = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
+  name        = "${aws_eks_cluster.this.name}-karpenter-controller-policy"
+  description = "Custom policy for the Karpenter controller IAM role"
+  policy      = file("${path.module}/karpenter_controller_policy.json")
+}
+
+resource "aws_iam_role" "karpenter_controller_role" {
+  count              = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
+  name               = "${aws_eks_cluster.this.name}-karpenter-controller-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "karpenter_controller_role" {
+  count      = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
+  role       = aws_iam_role.karpenter_controller_role[0].name
+  policy_arn = aws_iam_policy.karpenter_controller[0].arn
+}
+
+resource "aws_eks_pod_identity_association" "karpenter_controller" {
+  count           = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
+  cluster_name    = aws_eks_cluster.this.name
+  namespace       = "kube-system"
+  service_account = "karpenter"
+  role_arn        = aws_iam_role.karpenter_controller_role[0].arn
+
+  depends_on = [aws_iam_role_policy_attachment.karpenter_controller_role]
+}
+
+resource "aws_iam_role" "karpenter_node" {
+  count = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
+  name  = "${aws_eks_cluster.this.name}-karpenter-node-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "node_base_policies" {
+  for_each = var.use_karpenter && var.eks_mode != "auto" ? toset([
+    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly",
+    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  ]) : toset([])
+
+  role       = aws_iam_role.karpenter_node[0].name
+  policy_arn = each.value
+}
+
+resource "aws_iam_instance_profile" "karpenter_node" {
+  count = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
+  name  = "${aws_eks_cluster.this.name}-karpenter-node-profile"
+  role  = aws_iam_role.karpenter_node[0].name
 }

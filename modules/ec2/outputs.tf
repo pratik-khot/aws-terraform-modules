@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------
+# EC2 module outputs
+# Purpose: expose the instance and disk identifiers to calling configurations.
+# ---------------------------------------------------------------------------
 # Module outputs expose values to the calling configuration.
 output "instance_id" {
   description = "The EC2 instance ID"

@@ -8,6 +8,11 @@ variable "az_count" {
   type        = number
 }
 
+variable "availability_zone_names" {
+  description = "Ordered list of availability zone names to use"
+  type        = list(string)
+}
+
 variable "subnet_newbits" {
   description = "The number of new bits to use for subnetting"
   type        = number

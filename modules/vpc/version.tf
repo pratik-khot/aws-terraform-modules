@@ -1,4 +1,7 @@
-# Terraform and provider version constraints for this module.
+# ---------------------------------------------------------------------------
+# VPC module version constraints
+# Purpose: declare the Terraform and AWS provider versions required for this module.
+# ---------------------------------------------------------------------------
 terraform {
   required_version = ">= 1.9.0"
   required_providers {
