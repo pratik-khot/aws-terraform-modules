@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.1...v0.2.2) (2026-09-20)
+
+
+### Bug Fixes
+
+* Changed trust policy of cluster role ([d07ecb1](https://github.com/pratik-khot/aws-terraform-modules/commit/d07ecb1e0cc069a222a1366b219cb043eecf09c7))
+
 ## [0.2.1](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.0...v0.2.1) (2026-09-20)
 
 
