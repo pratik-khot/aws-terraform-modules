@@ -72,3 +72,15 @@ variable "node_disk_size" {
   type    = number
   default = 100
 }
+
+variable "eks_mode" {
+  description = "EKS compute mode"
+  type        = string
+  default     = "standard"
+}
+
+variable "use_karpenter" {
+  description = "Whether to create Karpenter IAM and interruption handling resources"
+  type        = bool
+  default     = false
+}

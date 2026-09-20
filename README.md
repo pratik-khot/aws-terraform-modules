@@ -44,7 +44,8 @@ are tagged for AWS Load Balancer Controller discovery.
 - AWS credentials with permissions for the resources selected by each module
 - An AWS region with the AZ names supplied through `availability_zone_names`
 
-The version constraints are declared in [`modules/vpc/version.tf`](modules/vpc/version.tf).
+Each module declares its Terraform and AWS provider constraints in its own
+`version.tf` file.
 Initialize and validate from the root directory of the configuration that calls
 the module:
 
@@ -55,6 +56,11 @@ terraform validate
 terraform plan
 terraform apply
 ```
+
+Local examples are available under [`example/`](example/):
+`example/vpc`, `example/eks`, and `example/ec2`. Each environment directory
+includes a tracked `.tfvars.example` template; copy it to a local `.tfvars`
+file and replace environment-specific IDs before planning.
 
 ## Use From Git
 
@@ -107,10 +113,12 @@ module "vpc" {
 
 Creates one public and one private subnet per selected available AZ. Public
 subnets route to an internet gateway; private subnets route to a public NAT
-gateway. `nat_availability_mode` accepts `zonal` or `regional`. When enabled,
-the optional security group allows TCP ports 22, 80, and 443 from
-`0.0.0.0/0`, plus all outbound traffic. Restrict or disable this group for
-production workloads.
+gateway. `nat_availability_mode` accepts `zonal` or `regional`: zonal mode uses
+an EIP-backed NAT gateway in the first public subnet, while regional mode lets
+AWS manage the regional NAT gateway address. When enabled, the optional
+security group allows TCP ports 22, 80, and 443 from `0.0.0.0/0`, plus all
+outbound traffic. Set `default_sg_required = false` for production workloads
+unless this intentionally broad ingress is required.
 
 ### Inputs
 
@@ -138,6 +146,7 @@ production workloads.
 | `private_subnet_ids` | IDs of all private subnets. | `module.vpc.private_subnet_ids` |
 | `public_subnet_map` | Map from availability zone to public subnet ID. | `module.vpc.public_subnet_map["us-east-1a"]` |
 | `private_subnet_map` | Map from availability zone to private subnet ID. | `module.vpc.private_subnet_map["us-east-1a"]` |
+| `default_security_group_id` | ID of the default security group. | `module.vpc.default_security_group_id` |
 
 ### Variable Details
 
@@ -247,9 +256,18 @@ module "eks" {
 
 The cluster enables API, audit, authenticator, controller manager, and
 scheduler control-plane logs and enables both private and public API endpoints.
-Standard mode creates a managed node group with desired size 2, minimum 1, and
-maximum 3. Auto Mode enables general-purpose node pools, block storage, and
-elastic load balancing and creates the corresponding AWS-managed IAM roles.
+Standard mode creates one managed node group using `node_group_scaling`,
+`node_instance_types`, and `node_disk_size`. Auto Mode enables general-purpose
+node pools, block storage, and elastic load balancing and creates the
+corresponding AWS-managed IAM roles instead of the standard node group.
+
+Choose the EKS compute model explicitly:
+
+| Scenario | `eks_mode` | `use_karpenter` | Result |
+| --- | --- | --- | --- |
+| Managed node group | `standard` | `false` | One Terraform-managed EKS node group. |
+| Karpenter-managed nodes | `standard` | `true` | Standard cluster plus Karpenter IAM, instance profile, interruption queue, and EventBridge rules. |
+| EKS Auto Mode | `auto` | ignored | AWS-managed compute, storage, and load balancing; no Karpenter resources. |
 
 Karpenter is available for `eks_mode = "standard"`. When `use_karpenter` is
 `true`, the module creates a controller role using EKS Pod Identity, a node
@@ -261,6 +279,12 @@ queue so Karpenter can react to capacity interruptions.
 Karpenter resources are not created in EKS Auto Mode. Install and configure
 the Karpenter Helm chart and its `NodePool`/`EC2NodeClass` resources separately;
 this module provides the AWS infrastructure and IAM resources they depend on.
+The interruption queue has five-minute message retention, SQS-managed
+encryption, and a policy that allows EventBridge to send messages while
+denying insecure HTTP transport. The four EventBridge rules forward AWS Health,
+Spot interruption, rebalance recommendation, and instance state-change events.
+Configure the Karpenter Helm chart with the controller role and interruption
+queue outputs, and configure `EC2NodeClass` with the node instance profile.
 
 ### Inputs
 
@@ -292,6 +316,11 @@ Standard mode defaults to `coredns`, `kube-proxy`, `vpc-cni`,
 `eks-pod-identity-agent`. User entries in `addons` override matching defaults;
 an omitted add-on version is resolved to the most recent version compatible
 with the cluster Kubernetes version.
+
+Auto Mode therefore does not install the standard-mode `coredns`, `kube-proxy`,
+`vpc-cni`, or `aws-ebs-csi-driver` add-ons through this module. The standard
+node group, Fargate profile, Load Balancer Controller, ExternalDNS, Secrets
+Store CSI provider, and Karpenter resources are disabled in Auto Mode.
 
 When enabled in standard mode, the controller integrations use EKS Pod
 Identity rather than IRSA annotations:
@@ -331,7 +360,15 @@ secrets_manager_kms_key_arns = [
 | Output | Description | Example |
 | --- | --- | --- |
 | `eks_cluster_connection` | AWS CLI command that updates the local kubeconfig. | `terraform output -raw eks_cluster_connection` |
+| `eks_cluster_arn` | ARN of the EKS cluster. | `terraform output eks_cluster_arn` |
+| `eks_cluster_sgs` | Cluster and additional security group IDs. | `terraform output eks_cluster_sgs` |
+| `eks_cluster_endpoint` | Kubernetes API server endpoint. | `terraform output eks_cluster_endpoint` |
+| `eks_cluster_certificate_authority_data` | Base64-encoded cluster certificate authority data. | `terraform output eks_cluster_certificate_authority_data` |
+| `eks_cluster_name` | EKS cluster name. | `terraform output eks_cluster_name` |
 | `load_balancer_controller_role_arn` | AWS Load Balancer Controller IAM role ARN. | `terraform output load_balancer_controller_role_arn` |
+| `load_balancer_controller_pod_identity_association_id` | AWS Load Balancer Controller Pod Identity association ID. | `terraform output load_balancer_controller_pod_identity_association_id` |
+| `vpc_cni_role_arn` | VPC CNI Pod Identity IAM role ARN. | `terraform output vpc_cni_role_arn` |
+| `ebs_csi_role_arn` | EBS CSI Pod Identity IAM role ARN. | `terraform output ebs_csi_role_arn` |
 | `external_dns_role_arn` | ExternalDNS IAM role ARN. | `terraform output external_dns_role_arn` |
 | `external_dns_pod_identity_association_id` | ExternalDNS Pod Identity association ID. | `terraform output external_dns_pod_identity_association_id` |
 | `secrets_store_provider_role_arn` | Secrets Store CSI provider IAM role ARN. | `terraform output secrets_store_provider_role_arn` |
@@ -513,14 +550,12 @@ module "ec2" {
     size                  = 30
     type                  = "gp3"
     delete_on_termination = true
-    encrypted             = true
   }
 
   data_volume_specs = {
     app_data = {
       size        = 50
       device_name = "/dev/sdf"
-      encrypted   = true
     }
   }
 }
@@ -530,7 +565,11 @@ Creates exactly one `aws_instance`. The AMI, subnet, security groups, and
 optional IAM instance profile are supplied by the caller. Each entry in
 `data_volume_specs` creates one EBS volume and one attachment, keyed by the
 logical map key. `ami_id` and `subnet_id` default to `null` in the module, but a
-usable EC2 deployment still requires values accepted by the AWS provider.
+usable EC2 deployment still requires values accepted by the AWS provider. The
+root and data volumes are always encrypted. The root volume uses
+`root_volume_specs.kms_key_id` when provided; data volumes use their own
+`kms_key_id` when provided and otherwise fall back to the AWS-managed
+`alias/aws/ebs` key.
 
 ### Inputs
 
@@ -546,14 +585,14 @@ usable EC2 deployment still requires values accepted by the AWS provider.
 | `enable_public_ip` | `bool` | No | `false` | `true`, `false` | Whether to associate a public IPv4 address. | `false` |
 | `key_name` | `string` | No | `null` | Existing EC2 key pair name | Optional SSH key pair. | `"platform-admin"` |
 | `enable_monitoring` | `bool` | No | `true` | `true`, `false` | Enables detailed CloudWatch monitoring. | `true` |
-| `ebs_optimized` | `bool` | No | `false` | `true`, `false` | Enables EBS optimization where supported. | `true` |
+| `ebs_optimized` | `bool` | No | `true` | `true` | Enables EBS optimization where supported. | `true` |
 | `user_data` | `string` | No | `null` | Bootstrap script or `null` | Script passed to instance initialization. | `file("bootstrap.sh")` |
 | `tags` | `map(string)` | No | `{}` | Key/value pairs | Additional instance tags merged last and able to override defaults. | `{ costcenter = "12345" }` |
 | `app_name` | `string` | No | `"demo-app"` | Naming-safe application name | Application tag and resource-name prefix. | `"orders"` |
 | `env` | `string` | No | `"dev"` | Environment identifier | Environment tag and resource-name component. | `"prod"` |
 | `disable_api_termination` | `bool` | No | `false` | `true`, `false` | Prevents API termination when enabled. | `true` |
 | `disable_api_stop` | `bool` | No | `false` | `true`, `false` | Prevents API stop when enabled. | `false` |
-| `root_volume_specs` | `object` | No | `{ size = 20, type = "gp3", delete_on_termination = true, encrypted = true }` | See schema below | Root EBS volume settings. | `{ size = 40, type = "gp3", delete_on_termination = true, encrypted = true }` |
+| `root_volume_specs` | `object` | No | `{ size = 20, type = "gp3", delete_on_termination = true }` | See schema below | Root EBS volume settings. Encryption is always enabled. | `{ size = 40, type = "gp3", delete_on_termination = true }` |
 | `data_volume_specs` | `map(object)` | No | `{}` | See schema below | Optional EBS data volumes keyed by logical name. | `{ data = { size = 100, device_name = "/dev/sdf" } }` |
 | `iam_instance_profile` | `string` | No | `null` | Existing instance profile name | IAM instance profile attached to the instance. | `aws_iam_instance_profile.app.name` |
 
@@ -561,11 +600,10 @@ usable EC2 deployment still requires values accepted by the AWS provider.
 AMI and subnet for a successful instance launch.
 
 `root_volume_specs` requires `size` and `delete_on_termination`; `type` is
-optional and defaults to `"gp3"`, `encrypted` is optional and defaults to
-`true`, and `kms_key_id` is optional. Each `data_volume_specs` entry requires
-`size` and `device_name`; it also supports optional `instance_key`, `type`
-(`"gp3"`), `delete_on_termination` (`true`), `encrypted` (`true`),
-`kms_key_id`, `iops`, and `throughput`.
+optional and defaults to `"gp3"`, and `kms_key_id` is optional. Root and data
+volumes are always encrypted. Each `data_volume_specs` entry requires `size`
+and `device_name`; it also supports optional `instance_key`, `type` (`"gp3"`),
+`delete_on_termination` (`true`), `kms_key_id`, `iops`, and `throughput`.
 
 ### Outputs
 
@@ -637,7 +675,7 @@ CloudWatch cost.
 
 #### `ebs_optimized`
 
-Description: Enables EBS optimization. Type: `bool`. Default: `false`. Example:
+Description: Enables EBS optimization. Type: `bool`. Default: `true`. Example:
 `ebs_optimized = true`. Business impact: improves storage I/O where supported.
 
 #### `user_data`
@@ -678,8 +716,8 @@ must remain continuously available.
 #### `root_volume_specs`
 
 Description: Root EBS settings. Type: `object`. Default: size `20`, type `"gp3"`,
-delete on termination `true`, encrypted `true`. Example:
-`root_volume_specs = { size = 40, type = "gp3", delete_on_termination = true, encrypted = true }`.
+delete on termination `true`; encryption is always enabled. Example:
+`root_volume_specs = { size = 40, type = "gp3", delete_on_termination = true }`.
 Business impact: sets boot-disk capacity, persistence, performance, and
 encryption.
 

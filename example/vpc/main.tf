@@ -4,6 +4,8 @@ module "vpc" {
   az_count                = var.az_count
   availability_zone_names = var.availability_zone_names
   subnet_newbits          = var.subnet_newbits
+  region                  = var.region
+  environment             = var.environment
   default_sg_required     = var.default_sg_required
   project_name            = var.project_name
   project_owner           = var.project_owner

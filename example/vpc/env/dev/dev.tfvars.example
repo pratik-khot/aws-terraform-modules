@@ -1,0 +1,10 @@
+vpc_cidr              = "10.0.0.0/16"
+az_count              = 4
+availability_zone_names = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
+region                = "us-east-1"
+environment           = "dev"
+nat_availability_mode = "zonal"
+project_name          = "devOps-prj"
+project_owner         = "devOps Team"
+default_sg_required   = true
+subnet_newbits        = 8
