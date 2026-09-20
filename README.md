@@ -113,10 +113,12 @@ module "vpc" {
 
 Creates one public and one private subnet per selected available AZ. Public
 subnets route to an internet gateway; private subnets route to a public NAT
-gateway. `nat_availability_mode` accepts `zonal` or `regional`. When enabled,
-the optional security group allows TCP ports 22, 80, and 443 from
-`0.0.0.0/0`, plus all outbound traffic. Restrict or disable this group for
-production workloads.
+gateway. `nat_availability_mode` accepts `zonal` or `regional`: zonal mode uses
+an EIP-backed NAT gateway in the first public subnet, while regional mode lets
+AWS manage the regional NAT gateway address. When enabled, the optional
+security group allows TCP ports 22, 80, and 443 from `0.0.0.0/0`, plus all
+outbound traffic. Set `default_sg_required = false` for production workloads
+unless this intentionally broad ingress is required.
 
 ### Inputs
 
@@ -254,9 +256,18 @@ module "eks" {
 
 The cluster enables API, audit, authenticator, controller manager, and
 scheduler control-plane logs and enables both private and public API endpoints.
-Standard mode creates a managed node group with desired size 2, minimum 1, and
-maximum 3. Auto Mode enables general-purpose node pools, block storage, and
-elastic load balancing and creates the corresponding AWS-managed IAM roles.
+Standard mode creates one managed node group using `node_group_scaling`,
+`node_instance_types`, and `node_disk_size`. Auto Mode enables general-purpose
+node pools, block storage, and elastic load balancing and creates the
+corresponding AWS-managed IAM roles instead of the standard node group.
+
+Choose the EKS compute model explicitly:
+
+| Scenario | `eks_mode` | `use_karpenter` | Result |
+| --- | --- | --- | --- |
+| Managed node group | `standard` | `false` | One Terraform-managed EKS node group. |
+| Karpenter-managed nodes | `standard` | `true` | Standard cluster plus Karpenter IAM, instance profile, interruption queue, and EventBridge rules. |
+| EKS Auto Mode | `auto` | ignored | AWS-managed compute, storage, and load balancing; no Karpenter resources. |
 
 Karpenter is available for `eks_mode = "standard"`. When `use_karpenter` is
 `true`, the module creates a controller role using EKS Pod Identity, a node
@@ -268,6 +279,12 @@ queue so Karpenter can react to capacity interruptions.
 Karpenter resources are not created in EKS Auto Mode. Install and configure
 the Karpenter Helm chart and its `NodePool`/`EC2NodeClass` resources separately;
 this module provides the AWS infrastructure and IAM resources they depend on.
+The interruption queue has five-minute message retention, SQS-managed
+encryption, and a policy that allows EventBridge to send messages while
+denying insecure HTTP transport. The four EventBridge rules forward AWS Health,
+Spot interruption, rebalance recommendation, and instance state-change events.
+Configure the Karpenter Helm chart with the controller role and interruption
+queue outputs, and configure `EC2NodeClass` with the node instance profile.
 
 ### Inputs
 
@@ -299,6 +316,11 @@ Standard mode defaults to `coredns`, `kube-proxy`, `vpc-cni`,
 `eks-pod-identity-agent`. User entries in `addons` override matching defaults;
 an omitted add-on version is resolved to the most recent version compatible
 with the cluster Kubernetes version.
+
+Auto Mode therefore does not install the standard-mode `coredns`, `kube-proxy`,
+`vpc-cni`, or `aws-ebs-csi-driver` add-ons through this module. The standard
+node group, Fargate profile, Load Balancer Controller, ExternalDNS, Secrets
+Store CSI provider, and Karpenter resources are disabled in Auto Mode.
 
 When enabled in standard mode, the controller integrations use EKS Pod
 Identity rather than IRSA annotations:
@@ -543,7 +565,11 @@ Creates exactly one `aws_instance`. The AMI, subnet, security groups, and
 optional IAM instance profile are supplied by the caller. Each entry in
 `data_volume_specs` creates one EBS volume and one attachment, keyed by the
 logical map key. `ami_id` and `subnet_id` default to `null` in the module, but a
-usable EC2 deployment still requires values accepted by the AWS provider.
+usable EC2 deployment still requires values accepted by the AWS provider. The
+root and data volumes are always encrypted. The root volume uses
+`root_volume_specs.kms_key_id` when provided; data volumes use their own
+`kms_key_id` when provided and otherwise fall back to the AWS-managed
+`alias/aws/ebs` key.
 
 ### Inputs
 

@@ -38,6 +38,7 @@ resource "aws_cloudwatch_event_rule" "karpenter_health_event" {
 }
 
 resource "aws_cloudwatch_event_target" "karpenter_health_target" {
+  count     = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
   rule      = aws_cloudwatch_event_rule.karpenter_health_event[0].name
   target_id = "KarpenterHealthTarget"
   arn       = aws_sqs_queue.karpenter_interruption[0].arn
@@ -60,6 +61,7 @@ resource "aws_cloudwatch_event_rule" "karpenter_spot_interrupt" {
 }
 
 resource "aws_cloudwatch_event_target" "karpenter_spot_target" {
+  count     = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
   rule      = aws_cloudwatch_event_rule.karpenter_spot_interrupt[0].name
   target_id = "KarpenterSpotTarget"
   arn       = aws_sqs_queue.karpenter_interruption[0].arn
@@ -82,6 +84,7 @@ resource "aws_cloudwatch_event_rule" "karpenter_rebalance" {
 }
 
 resource "aws_cloudwatch_event_target" "karpenter_rebalance_target" {
+  count     = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
   rule      = aws_cloudwatch_event_rule.karpenter_rebalance[0].name
   target_id = "KarpenterRebalanceTarget"
   arn       = aws_sqs_queue.karpenter_interruption[0].arn

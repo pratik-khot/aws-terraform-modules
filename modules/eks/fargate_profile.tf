@@ -1,6 +1,6 @@
 # Optional Fargate profile for pods in the selected namespace.
 resource "aws_eks_fargate_profile" "this" {
-  count                  = var.enable_fargate ? 1 : 0
+  count                  = var.enable_fargate && var.eks_mode != "auto" ? 1 : 0
   cluster_name           = aws_eks_cluster.this.name
   fargate_profile_name   = "${aws_eks_cluster.this.name}-farget-prf"
   pod_execution_role_arn = aws_iam_role.fargate[0].arn
@@ -18,7 +18,7 @@ resource "aws_eks_fargate_profile" "this" {
 
 # Pod execution role used by the Fargate profile.
 resource "aws_iam_role" "fargate" {
-  count = var.enable_fargate ? 1 : 0
+  count = var.enable_fargate && var.eks_mode != "auto" ? 1 : 0
   name  = "${aws_eks_cluster.this.name}-fargate-role"
 
   assume_role_policy = jsonencode({
@@ -34,7 +34,7 @@ resource "aws_iam_role" "fargate" {
 }
 
 resource "aws_iam_role_policy_attachment" "AmazonEKSFargatePodExecutionRolePolicy" {
-  count      = var.enable_fargate ? 1 : 0
+  count      = var.enable_fargate && var.eks_mode != "auto" ? 1 : 0
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
   role       = aws_iam_role.fargate[0].name
 }

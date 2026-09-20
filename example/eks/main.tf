@@ -4,6 +4,8 @@ module "my-eks" {
   auth_mode                          = var.auth_mode
   region                             = var.region
   cluster_version                    = var.cluster_version
+  eks_mode                           = var.eks_mode
+  use_karpenter                      = var.use_karpenter
   node_group_scaling                 = var.node_group_scaling
   node_instance_types                = var.node_instance_types
   node_disk_size                     = var.node_disk_size

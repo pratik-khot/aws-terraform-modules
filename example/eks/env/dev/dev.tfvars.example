@@ -1,0 +1,13 @@
+cluster_name                       = "my-eks-cluster"
+cluster_version                    = "1.36"
+auth_mode                          = "API_AND_CONFIG_MAP"
+region                             = "us-east-1"
+eks_mode                           = "standard"
+use_karpenter                      = false
+create_lbc_role                    = true
+create_external_dns_role           = false
+create_secrets_store_provider_role = false
+
+# Set use_karpenter = true for standard mode and configure the emitted
+# controller role, node instance profile, and interruption queue outputs.
+# Set eks_mode = "auto" to use EKS Auto Mode instead; Karpenter is disabled.
