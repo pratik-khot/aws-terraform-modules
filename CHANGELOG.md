@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.3](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.2...v0.2.3) (2026-09-24)
+
+
+### Bug Fixes
+
+* **eks:** use cluster resource and add system node pool ([5e8eb93](https://github.com/pratik-khot/aws-terraform-modules/commit/5e8eb93896d579e88ecca199bdbe0c6c8b0e9972))
+* **eks:** use cluster resource and add system node pool ([e7aea52](https://github.com/pratik-khot/aws-terraform-modules/commit/e7aea521ca612727120dc120b6a9823e6805e004))
+
 ## [0.2.2](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.1...v0.2.2) (2026-09-20)
 
 
