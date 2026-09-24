@@ -6,7 +6,7 @@
 resource "aws_eks_addon" "addons" {
   for_each = local.addons
 
-  cluster_name  = var.cluster_name
+  cluster_name  = aws_eks_cluster.this.name
   addon_name    = each.key
   addon_version = coalesce(try(each.value.version, null), data.aws_eks_addon_version.addon_versions[each.key].version)
 

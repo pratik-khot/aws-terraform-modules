@@ -19,7 +19,7 @@ resource "aws_eks_cluster" "this" {
     for_each = var.eks_mode == "auto" ? [1] : []
     content {
       enabled       = true
-      node_pools    = ["general-purpose"]
+      node_pools    = ["general-purpose", "system"]
       node_role_arn = aws_iam_role.auto_node[0].arn
     }
   }
