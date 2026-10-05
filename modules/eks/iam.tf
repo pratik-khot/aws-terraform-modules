@@ -138,26 +138,26 @@ resource "aws_eks_pod_identity_association" "ebs_csi" {
 
 # Optional pod identity role for the AWS Load Balancer Controller.
 resource "aws_iam_role" "load_balancer_controller" {
-  count              = var.create_lbc_role && var.eks_mode != "auto" ? 1 : 0
+  count              = var.create_lbc_role ? 1 : 0
   name               = "${aws_eks_cluster.this.name}-load-balancer-controller-role"
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 }
 
 resource "aws_iam_policy" "load_balancer_controller_policy" {
-  count       = var.create_lbc_role && var.eks_mode != "auto" ? 1 : 0
+  count       = var.create_lbc_role ? 1 : 0
   name        = "${aws_eks_cluster.this.name}-load-balancer-controller-policy"
   description = "Policy for the AWS Load Balancer Controller"
   policy      = file("${path.module}/lbc_iam_policy.json")
 }
 
 resource "aws_iam_role_policy_attachment" "lbc_policy_attachment" {
-  count      = var.create_lbc_role && var.eks_mode != "auto" ? 1 : 0
+  count      = var.create_lbc_role ? 1 : 0
   role       = aws_iam_role.load_balancer_controller[0].name
   policy_arn = aws_iam_policy.load_balancer_controller_policy[0].arn
 }
 
 resource "aws_eks_pod_identity_association" "lbc_pia" {
-  count           = var.create_lbc_role && var.eks_mode != "auto" ? 1 : 0
+  count           = var.create_lbc_role ? 1 : 0
   cluster_name    = aws_eks_cluster.this.name
   namespace       = "kube-system"
   service_account = "aws-load-balancer-controller"
