@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.3...v0.2.4) (2026-10-05)
+
+
+### Bug Fixes
+
+* Corrected lbc role creation for eks module ([6ee5c8d](https://github.com/pratik-khot/aws-terraform-modules/commit/6ee5c8d869732e0e4ac5bf7937929b606cf0bcf9))
+
 ## [0.2.3](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.2...v0.2.3) (2026-09-24)
 
 
