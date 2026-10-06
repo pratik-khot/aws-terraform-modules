@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.4...v0.2.5) (2026-10-06)
+
+
+### Bug Fixes
+
+* Added code for access entry ([0cb42fb](https://github.com/pratik-khot/aws-terraform-modules/commit/0cb42fb331cb40db292ec0f49861d6a6bebcdcdf))
+
 ## [0.2.4](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.3...v0.2.4) (2026-10-05)
 
 
