@@ -68,7 +68,12 @@ resource "aws_eks_cluster" "this" {
 
 }
 
+resource "aws_eks_access_entry" "karpenter_node_role" {
+  count = var.use_karpenter && var.eks_mode != "auto" ? 1 : 0
 
-
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = aws_iam_role.karpenter_node[0].arn
+  type          = "EC2_LINUX"
+}
 
 
