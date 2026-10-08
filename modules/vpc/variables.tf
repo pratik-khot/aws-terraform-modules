@@ -76,3 +76,10 @@ variable "log_group_retention_in_days" {
   type    = number
   default = 365
 }
+
+variable "private_subnet_tags" {
+  description = "Tags to apply to private subnets"
+  type        = map(string)
+  default     = {}
+
+}

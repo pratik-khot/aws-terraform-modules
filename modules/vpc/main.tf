@@ -45,9 +45,11 @@ resource "aws_subnet" "private" {
   for_each          = { for idx, az in local.azs : az => local.private_subnets[idx] }
   cidr_block        = each.value
   availability_zone = each.key
-  tags = merge(local.custom_tags, {
-    Name                              = "${aws_vpc.main.tags.Name}-pvt-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}",
-    "kubernetes.io/role/internal-elb" = "1"
+  tags = merge(
+    local.custom_tags,
+    var.private_subnet_tags,
+    { Name                              = "${aws_vpc.main.tags.Name}-pvt-sub-${substr(split("-", each.key)[0], 0, 2)}${substr(split("-", each.key)[1], 0, 1)}${split("-", each.key)[2]}",
+      "kubernetes.io/role/internal-elb" = "1"
   })
 }
 
@@ -98,8 +100,8 @@ resource "aws_route_table_association" "public_rta" {
 resource "aws_route_table" "private_rt" {
   vpc_id = aws_vpc.main.id
   route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.main.id
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
   }
 
   tags = merge(local.custom_tags, {
