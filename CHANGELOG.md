@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.5...v0.2.6) (2026-10-08)
+
+
+### Bug Fixes
+
+* add private subnet tags support and correct NAT route configuration ([e278e6b](https://github.com/pratik-khot/aws-terraform-modules/commit/e278e6b115a48f083786b8b75cd6cc8e23b10f2e))
+
 ## [0.2.5](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.4...v0.2.5) (2026-10-06)
 
 
