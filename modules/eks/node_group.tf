@@ -1,25 +1,44 @@
 # ---------------------------------------------------------------------------
 # Standard node group resources
-# Purpose: create the managed EC2 node group used in standard EKS mode.
+# Purpose: create the managed EC2 node groups used in standard EKS mode.
 # ---------------------------------------------------------------------------
-# Managed EC2 worker node group for standard EKS mode.
+
+moved {
+  from = aws_eks_node_group.this[0]
+  to   = aws_eks_node_group.this["default"]
+}
+
+# Managed EC2 worker node groups for standard EKS mode.
 resource "aws_eks_node_group" "this" {
-  count           = var.eks_mode == "auto" ? 0 : 1
+  for_each        = var.eks_mode == "auto" ? {} : var.node_groups
   cluster_name    = aws_eks_cluster.this.name
-  node_group_name = "${var.cluster_name}-node-group"
+  node_group_name = each.key == "default" ? "${var.cluster_name}-node-group" : "${var.cluster_name}-${each.key}"
   node_role_arn   = aws_iam_role.node_group_role[0].arn
   subnet_ids      = var.subnet_ids
-  instance_types  = var.node_instance_types
-  disk_size       = var.node_disk_size
+  version         = coalesce(each.value.version, var.cluster_version)
+  instance_types  = each.value.instance_types
+  disk_size       = each.value.disk_size
+  capacity_type   = each.value.capacity_type
+  labels          = each.value.labels
 
   scaling_config {
-    desired_size = var.node_group_scaling.desired_size
-    max_size     = var.node_group_scaling.max_size
-    min_size     = var.node_group_scaling.min_size
+    desired_size = each.value.desired_size
+    max_size     = each.value.max_size
+    min_size     = each.value.min_size
   }
 
   update_config {
     max_unavailable = 1
+  }
+
+  dynamic "taint" {
+    for_each = each.value.taints
+
+    content {
+      key    = taint.value.key
+      value  = taint.value.value
+      effect = taint.value.effect
+    }
   }
 
   # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.

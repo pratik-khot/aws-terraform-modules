@@ -2,11 +2,59 @@ cluster_name                       = "my-eks-cluster"
 cluster_version                    = "1.36"
 auth_mode                          = "API_AND_CONFIG_MAP"
 region                             = "us-east-1"
+creator_admin_permissions          = true
 eks_mode                           = "standard"
 use_karpenter                      = false
+enable_fargate                     = false
+fargate_namespace                  = "default"
 create_lbc_role                    = true
 create_external_dns_role           = false
 create_secrets_store_provider_role = false
+vpc_remote_state_organization      = "example-org"
+vpc_remote_state_workspace         = "vpc-dev"
+
+addons = {}
+
+external_dns_hosted_zone_arns = []
+secrets_manager_secret_arns   = []
+secrets_manager_kms_key_arns  = []
+
+tags = {
+	environment = "dev"
+	project     = "platform"
+}
+
+node_groups = {
+	general = {
+		version        = "1.36"
+		instance_types = ["t3.medium"]
+		disk_size      = 50
+		desired_size   = 2
+		min_size       = 1
+		max_size       = 4
+		labels = {
+			workload = "general"
+		}
+	}
+
+	spot = {
+		version        = "1.36"
+		instance_types = ["t3.large", "t3a.large"]
+		capacity_type  = "SPOT"
+		disk_size      = 80
+		desired_size   = 1
+		min_size       = 0
+		max_size       = 5
+		labels = {
+			workload = "batch"
+		}
+		taints = [{
+			key    = "workload"
+			value  = "batch"
+			effect = "NO_SCHEDULE"
+		}]
+	}
+}
 
 # Set use_karpenter = true for standard mode and configure the emitted
 # controller role, node instance profile, and interruption queue outputs.

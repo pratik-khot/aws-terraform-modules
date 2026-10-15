@@ -37,6 +37,11 @@ output "eks_cluster_name" {
   value = aws_eks_cluster.this.name
 }
 
+output "eks_node_group_arns" {
+  description = "Map of managed node group ARNs keyed by node group name."
+  value       = { for name, node_group in aws_eks_node_group.this : name => node_group.arn }
+}
+
 output "load_balancer_controller_role_arn" {
   description = "IAM role ARN used by the AWS Load Balancer Controller."
   value       = try(aws_iam_role.load_balancer_controller[0].arn, null)

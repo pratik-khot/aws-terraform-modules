@@ -30,7 +30,7 @@ The modules have no module-to-module dependency in their source code. A typical
 deployment composes them as follows:
 
 1. `modules/vpc` discovers available AZs, creates one public and one private subnet per selected AZ, and routes private egress through a NAT gateway.
-2. `modules/eks` consumes the VPC private subnet IDs and creates the EKS control plane, standard managed node group or Auto Mode configuration, add-ons, and conditional IAM resources.
+2. `modules/eks` consumes the VPC private subnet IDs and creates the EKS control plane, managed node groups or Auto Mode configuration, add-ons, and conditional IAM resources.
 3. `modules/ec2` consumes a subnet and security group IDs and creates one EC2 instance plus optional EBS volumes and attachments.
 
 The VPC module also creates CloudWatch VPC Flow Logs, their log group, and the
@@ -87,7 +87,7 @@ git push origin v1.0.0
 | Module | Creates | Primary use |
 | --- | --- | --- |
 | [`modules/vpc`](modules/vpc/) | VPC, public/private subnets, NAT, routes, Flow Logs, and optional security group | Foundational AWS networking |
-| [`modules/eks`](modules/eks/) | EKS cluster, standard node group or Auto Mode, add-ons, and conditional IAM | Managed Kubernetes |
+| [`modules/eks`](modules/eks/) | EKS cluster, managed node groups or Auto Mode, add-ons, and conditional IAM | Managed Kubernetes |
 | [`modules/ec2`](modules/ec2/) | One EC2 instance, root EBS disk, optional data disks, and attachments | Stateful or general-purpose compute |
 
 ## VPC Module
@@ -240,10 +240,31 @@ module "eks" {
   cluster_version = "1.36"
   region          = "us-east-1"
   subnet_ids      = module.vpc.private_subnet_ids
-  node_group_scaling = {
-    desired_size = 3
-    max_size     = 5
-    min_size     = 1
+  node_groups = {
+    general = {
+      version        = "1.36"
+      instance_types = ["t3.medium"]
+      disk_size      = 100
+      desired_size   = 3
+      max_size       = 5
+      min_size       = 1
+      labels         = { workload = "general" }
+    }
+    batch = {
+      version        = "1.36"
+      instance_types = ["t3.large", "t3a.large"]
+      capacity_type  = "SPOT"
+      disk_size      = 100
+      desired_size   = 1
+      max_size       = 5
+      min_size       = 0
+      labels         = { workload = "batch" }
+      taints = [{
+        key    = "workload"
+        value  = "batch"
+        effect = "NO_SCHEDULE"
+      }]
+    }
   }
   auth_mode       = "API_AND_CONFIG_MAP"
   eks_mode        = "standard"
@@ -251,30 +272,43 @@ module "eks" {
   create_external_dns_role = false
   create_secrets_store_provider_role = false
   use_karpenter   = true
+  tags = {
+    environment = "prod"
+    project     = "platform"
+  }
 }
 ```
 
 The cluster enables API, audit, authenticator, controller manager, and
 scheduler control-plane logs and enables both private and public API endpoints.
-Standard mode creates one managed node group using `node_group_scaling`,
-`node_instance_types`, and `node_disk_size`. Auto Mode enables general-purpose
-node pools, block storage, and elastic load balancing and creates the
-corresponding AWS-managed IAM roles instead of the standard node group.
+Standard mode creates the managed node groups declared in `node_groups`. Each
+group can configure Kubernetes version, instance types, disk size, capacity
+type, scaling, labels, and taints. An omitted node-group version defaults to
+`cluster_version`. Omitting `node_groups` creates a `default` group using all
+attribute defaults; explicitly setting `node_groups = {}` creates no managed
+node groups. All managed node groups use the same module-created worker IAM
+role and cluster subnet list. Auto Mode disables managed node groups and
+enables the `general-purpose` and `system` node pools, block storage, and
+elastic load balancing.
 
 Choose the EKS compute model explicitly:
 
 | Scenario | `eks_mode` | `use_karpenter` | Result |
 | --- | --- | --- | --- |
-| Managed node group | `standard` | `false` | One Terraform-managed EKS node group. |
-| Karpenter-managed nodes | `standard` | `true` | Standard cluster plus Karpenter IAM, instance profile, interruption queue, and EventBridge rules. |
+| Managed node groups | `standard` | `false` | One or more Terraform-managed EKS node groups. |
+| Karpenter infrastructure | `standard` | `true` | Karpenter IAM, access entry, instance profile, interruption queue, and EventBridge rules; managed groups follow `node_groups`. |
 | EKS Auto Mode | `auto` | ignored | AWS-managed compute, storage, and load balancing; no Karpenter resources. |
 
 Karpenter is available for `eks_mode = "standard"`. When `use_karpenter` is
 `true`, the module creates a controller role using EKS Pod Identity, a node
-role with the required AWS-managed worker policies, an EC2 instance profile,
-and an encrypted SQS interruption queue. EventBridge rules forward AWS Health,
-EC2 Spot interruption, EC2 rebalance, and EC2 instance-state events to that
-queue so Karpenter can react to capacity interruptions.
+role, an `EC2_LINUX` cluster access entry, an EC2 instance profile, and an
+encrypted SQS interruption queue. The node role receives
+`AmazonEKSWorkerNodePolicy`, `AmazonEC2ContainerRegistryPullOnly`,
+`AmazonEKS_CNI_Policy`, and `AmazonSSMManagedInstanceCore`. EventBridge rules
+forward AWS Health, EC2 Spot interruption, EC2 rebalance, and EC2
+instance-state events to the queue. Enabling Karpenter does not disable the
+module's managed node groups; set `node_groups = {}` for a Karpenter-only
+standard-mode cluster.
 
 Karpenter resources are not created in EKS Auto Mode. Install and configure
 the Karpenter Helm chart and its `NodePool`/`EC2NodeClass` resources separately;
@@ -286,6 +320,11 @@ Spot interruption, rebalance recommendation, and instance state-change events.
 Configure the Karpenter Helm chart with the controller role and interruption
 queue outputs, and configure `EC2NodeClass` with the node instance profile.
 
+Auto Mode attaches `AmazonEKSComputePolicy`, `AmazonEKSBlockStoragePolicy`,
+`AmazonEKSLoadBalancingPolicy`, and `AmazonEKSNetworkingPolicy` to the cluster
+role. Its node role receives `AmazonEKSWorkerNodeMinimalPolicy` and
+`AmazonEC2ContainerRegistryPullOnly`.
+
 ### Inputs
 
 | Variable | Type | Required | Default | Allowed values | Description | Example |
@@ -293,9 +332,7 @@ queue outputs, and configure `EC2NodeClass` with the node instance profile.
 | `cluster_name` | `string` | Yes | N/A | AWS/EKS naming rules | EKS cluster name and prefix for IAM and node-group resources. | `"platform-eks"` |
 | `cluster_version` | `string` | No | `"1.36"` | EKS-supported Kubernetes version | Kubernetes version for the control plane and add-on lookup. | `"1.35"` |
 | `subnet_ids` | `list(string)` | Yes | N/A | Existing subnet IDs | Subnets for the EKS control plane and standard nodes/Fargate. | `module.vpc.private_subnet_ids` |
-| `node_group_scaling` | `object` | No | `{ desired_size = 3, max_size = 5, min_size = 1 }` | `min <= desired <= max` | Scaling configuration for the standard managed node group. | `{ desired_size = 3, max_size = 5, min_size = 1 }` |
-| `node_instance_types` | `list(string)` | No | `["t3.medium"]` | EC2 instance types | Instance types for the standard managed node group. | `["t3.large"]` |
-| `node_disk_size` | `number` | No | `100` | GiB | Root disk size for standard managed node-group nodes. | `100` |
+| `node_groups` | `map(object)` | No | `{ default = {} }` | `ON_DEMAND`/`SPOT`; valid scaling and taint effects | Managed node groups keyed by name, with optional version, instance, disk, scaling, label, and taint settings. | `{ general = { instance_types = ["t3.medium"] } }` |
 | `region` | `string` | Yes | N/A | Any AWS region | AWS region used by the cluster connection command. | `"us-east-1"` |
 | `creator_admin_permissions` | `bool` | No | `true` | `true`, `false` | Grants the cluster creator bootstrap administrator permissions. | `false` |
 | `auth_mode` | `string` | No | `"API_AND_CONFIG_MAP"` | `API_AND_CONFIG_MAP`, `API`, `CONFIG_MAP` | EKS authentication mode. | `"API"` |
@@ -303,13 +340,14 @@ queue outputs, and configure `EC2NodeClass` with the node instance profile.
 | `enable_fargate` | `bool` | No | `false` | `true`, `false` | Creates a Fargate profile for the selected namespace. | `true` |
 | `fargate_namespace` | `string` | No | `"default"` | Kubernetes namespace | Namespace selected by the optional Fargate profile. | `"workloads"` |
 | `addons` | `map(any)` | No | `{}` | Add-on names; optional `version` per entry | Add-ons to merge with mode-specific defaults. | `{ coredns = { version = "v1.12.0-eksbuild.1" } }` |
-| `create_lbc_role` | `bool` | No | `false` | `true`, `false` | Creates the AWS Load Balancer Controller policy, role, and pod identity association in standard mode. | `true` |
-| `create_external_dns_role` | `bool` | No | `false` | `true`, `false` | Creates the ExternalDNS policy, role, and Pod Identity association in standard mode. | `true` |
+| `create_lbc_role` | `bool` | No | `false` | `true`, `false` | Creates the AWS Load Balancer Controller policy, role, and Pod Identity association. | `true` |
+| `create_external_dns_role` | `bool` | No | `false` | `true`, `false` | Creates the ExternalDNS policy, role, and Pod Identity association. | `true` |
 | `external_dns_hosted_zone_arns` | `list(string)` | No | `[]` | Route 53 hosted-zone ARNs | Limits ExternalDNS record changes to approved hosted zones. | `["arn:aws:route53:::hostedzone/Z123"]` |
-| `create_secrets_store_provider_role` | `bool` | No | `false` | `true`, `false` | Creates the Secrets Store CSI provider policy, role, and Pod Identity association in standard mode. | `true` |
+| `create_secrets_store_provider_role` | `bool` | No | `false` | `true`, `false` | Creates the Secrets Store CSI provider policy, role, and Pod Identity association. | `true` |
 | `secrets_manager_secret_arns` | `list(string)` | No | `[]` | Secrets Manager secret ARNs | Limits CSI provider reads to approved secrets. | `["arn:aws:secretsmanager:us-east-1:123456789012:secret:app/*"]` |
 | `secrets_manager_kms_key_arns` | `list(string)` | No | `[]` | KMS key ARNs | Optional keys allowed for `kms:Decrypt`. | `["arn:aws:kms:us-east-1:123456789012:key/..."]` |
 | `use_karpenter` | `bool` | No | `false` | `true`, `false` | Creates Karpenter IAM, instance profile, SQS, and EventBridge resources in standard mode. | `true` |
+| `tags` | `map(string)` | No | `{}` | AWS tag keys and values | User tags applied to supported taggable EKS resources. | `{ environment = "prod" }` |
 
 Standard mode defaults to `coredns`, `kube-proxy`, `vpc-cni`,
 `eks-pod-identity-agent`, and `aws-ebs-csi-driver`. Auto Mode defaults to
@@ -317,13 +355,14 @@ Standard mode defaults to `coredns`, `kube-proxy`, `vpc-cni`,
 an omitted add-on version is resolved to the most recent version compatible
 with the cluster Kubernetes version.
 
-Auto Mode therefore does not install the standard-mode `coredns`, `kube-proxy`,
-`vpc-cni`, or `aws-ebs-csi-driver` add-ons through this module. The standard
-node group, Fargate profile, Load Balancer Controller, ExternalDNS, Secrets
-Store CSI provider, and Karpenter resources are disabled in Auto Mode.
+Auto Mode therefore does not install `coredns`, `kube-proxy`, `vpc-cni`, or
+`aws-ebs-csi-driver` by default. A caller can still add entries through
+`addons`. Managed node groups, Fargate, and Karpenter are disabled in Auto
+Mode. The Load Balancer Controller, ExternalDNS, and Secrets Store IAM switches
+are independent of `eks_mode`; leave `create_lbc_role = false` when using only
+Auto Mode's native load balancing.
 
-When enabled in standard mode, the controller integrations use EKS Pod
-Identity rather than IRSA annotations:
+The controller integrations use EKS Pod Identity rather than IRSA annotations:
 
 | Integration | Namespace | ServiceAccount | Terraform switch |
 | --- | --- | --- | --- |
@@ -365,6 +404,7 @@ secrets_manager_kms_key_arns = [
 | `eks_cluster_endpoint` | Kubernetes API server endpoint. | `terraform output eks_cluster_endpoint` |
 | `eks_cluster_certificate_authority_data` | Base64-encoded cluster certificate authority data. | `terraform output eks_cluster_certificate_authority_data` |
 | `eks_cluster_name` | EKS cluster name. | `terraform output eks_cluster_name` |
+| `eks_node_group_arns` | Managed node group ARNs keyed by the `node_groups` map key. | `terraform output eks_node_group_arns` |
 | `load_balancer_controller_role_arn` | AWS Load Balancer Controller IAM role ARN. | `terraform output load_balancer_controller_role_arn` |
 | `load_balancer_controller_pod_identity_association_id` | AWS Load Balancer Controller Pod Identity association ID. | `terraform output load_balancer_controller_pod_identity_association_id` |
 | `vpc_cni_role_arn` | VPC CNI Pod Identity IAM role ARN. | `terraform output vpc_cni_role_arn` |
@@ -374,8 +414,10 @@ secrets_manager_kms_key_arns = [
 | `secrets_store_provider_role_arn` | Secrets Store CSI provider IAM role ARN. | `terraform output secrets_store_provider_role_arn` |
 | `secrets_store_provider_pod_identity_association_id` | Secrets Store CSI provider Pod Identity association ID. | `terraform output secrets_store_provider_pod_identity_association_id` |
 | `karpenter_controller_role_arn` | Karpenter controller IAM role ARN. | `terraform output karpenter_controller_role_arn` |
+| `karpenter_controller_policy_arn` | Karpenter controller IAM policy ARN. | `terraform output karpenter_controller_policy_arn` |
 | `karpenter_controller_pod_identity_association_id` | Karpenter controller Pod Identity association ID. | `terraform output karpenter_controller_pod_identity_association_id` |
 | `karpenter_node_role_arn` | Karpenter node IAM role ARN. | `terraform output karpenter_node_role_arn` |
+| `karpenter_node_instance_profile_arn` | Karpenter node EC2 instance profile ARN. | `terraform output karpenter_node_instance_profile_arn` |
 | `karpenter_node_instance_profile_name` | Karpenter node EC2 instance profile name. | `terraform output karpenter_node_instance_profile_name` |
 | `karpenter_interruption_queue_arn` | Karpenter interruption SQS queue ARN. | `terraform output karpenter_interruption_queue_arn` |
 | `karpenter_interruption_queue_url` | Karpenter interruption SQS queue URL. | `terraform output karpenter_interruption_queue_url` |
@@ -404,22 +446,29 @@ Description: Subnets for EKS resources. Type: `list(string)`. Required. Example:
 `subnet_ids = module.vpc.private_subnet_ids`. Business impact: determines
 cluster placement and workload network reachability.
 
-#### `node_group_scaling`
+#### `node_groups`
 
-Description: Scaling configuration for the standard EKS managed node group.
-Type: `object` with `desired_size`, `max_size`, and `min_size` numbers. Default:
-`desired_size = 3`, `max_size = 5`, `min_size = 1`. The module validates that
-`min_size >= 1`, `min_size <= desired_size`, and `desired_size <= max_size`.
+Description: Managed node groups created in standard mode. Type: map of
+objects keyed by node-group name. Default: `{ default = {} }`, which creates
+one default group using the attribute defaults below. Pass `{}` explicitly to
+create no managed node groups. Each object supports:
 
-#### `node_instance_types`
+| Attribute | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `version` | `string` | `cluster_version` | Kubernetes version for this node group. |
+| `instance_types` | `list(string)` | `["t3.medium"]` | One or more compatible EC2 instance types. |
+| `disk_size` | `number` | `100` | Root disk size in GiB. |
+| `capacity_type` | `string` | `"ON_DEMAND"` | `ON_DEMAND` or `SPOT`. |
+| `desired_size` | `number` | `3` | Initial desired node count. |
+| `max_size` | `number` | `5` | Maximum node count. |
+| `min_size` | `number` | `1` | Minimum node count; zero is allowed. |
+| `labels` | `map(string)` | `{}` | Kubernetes labels applied to nodes. |
+| `taints` | `list(object)` | `[]` | Objects with `key`, optional `value`, and `effect`. |
 
-Description: EC2 instance types for the standard managed node group. Type:
-`list(string)`. Default: `["t3.medium"]`. Auto Mode ignores this input.
-
-#### `node_disk_size`
-
-Description: Root disk size in GiB for standard managed node-group nodes. Type:
-`number`. Default: `100`. Auto Mode ignores this input.
+Each group must satisfy `0 <= min_size <= desired_size <= max_size`.
+`capacity_type` must be `ON_DEMAND` or `SPOT`; taint effects must be
+`NO_SCHEDULE`, `NO_EXECUTE`, or `PREFER_NO_SCHEDULE`. Map keys become the
+suffix in `${cluster_name}-${key}` node-group names.
 
 #### `region`
 
@@ -466,19 +515,19 @@ Business impact: controls core cluster capabilities and their upgrade versions.
 
 #### `create_lbc_role`
 
-Description: Creates AWS Load Balancer Controller IAM resources in standard mode.
+Description: Creates AWS Load Balancer Controller IAM resources.
 Type: `bool`. Default: `false`. Example: `create_lbc_role = true`. Business
 impact: enables controller access to provision and manage AWS load balancers.
 
 The explicit validation rules
 are `auth_mode` in `API_AND_CONFIG_MAP`, `API`, or `CONFIG_MAP`, and `eks_mode`
-in `standard` or `auto`. `create_lbc_role` is ignored for Auto Mode because
-Auto Mode manages load balancing through its own configuration.
+in `standard` or `auto`. Auto Mode has native load balancing, but the module
+does not automatically ignore `create_lbc_role`.
 
 #### `create_external_dns_role`
 
 Description: Creates the ExternalDNS IAM role, policy, and EKS Pod Identity
-association in standard mode. Type: `bool`. Default: `false`. Set this to
+association. Type: `bool`. Default: `false`. Set this to
 `true` together with `external_dns_hosted_zone_arns` when the GitOps ExternalDNS
 Application is enabled. The association targets `external-dns/external-dns`.
 
@@ -491,7 +540,7 @@ the module requires at least one ARN when `create_external_dns_role` is true.
 #### `create_secrets_store_provider_role`
 
 Description: Creates the AWS Secrets Store CSI provider IAM role, policy, and
-EKS Pod Identity association in standard mode. Type: `bool`. Default: `false`.
+EKS Pod Identity association. Type: `bool`. Default: `false`.
 The association targets `kube-system/secrets-store-csi-driver-provider-aws`.
 
 #### `secrets_manager_secret_arns`
@@ -513,6 +562,14 @@ Default: `false`. Example: `use_karpenter = true`. Business impact: enables
 dynamic node provisioning support and interruption handling. This input is
 ignored when `eks_mode = "auto"`.
 
+#### `tags`
+
+Description: User-defined tags applied to supported taggable EKS resources.
+Type: `map(string)`. Default: `{}`. Example:
+`tags = { environment = "prod", project = "platform" }`. Cluster, managed
+node-group, Fargate, and Karpenter queue tags also include the module's
+`managed_by = "terraform"` tag. EventBridge rules receive the user tags.
+
 ### Karpenter Example
 
 ```hcl
@@ -523,6 +580,14 @@ module "eks" {
   subnet_ids    = module.vpc.private_subnet_ids
   eks_mode      = "standard"
   use_karpenter = true
+  node_groups = {
+    system = {
+      instance_types = ["t3.medium"]
+      desired_size   = 2
+      min_size       = 1
+      max_size       = 3
+    }
+  }
 }
 ```
 
@@ -530,6 +595,19 @@ Use `karpenter_controller_role_arn`, `karpenter_node_role_arn`, and
 `karpenter_node_instance_profile_name` when configuring the Karpenter Helm
 chart and `EC2NodeClass`. The `karpenter_interruption_queue_arn` output
 identifies the queue used for interruption handling.
+
+The local example under `example/eks` exposes every module output and reads
+`private_subnet_ids` from an HCP Terraform VPC workspace. Set
+`vpc_remote_state_organization` and `vpc_remote_state_workspace` in its tfvars
+file before running the example.
+
+Initialize the example's S3 backend with the environment config, then pass the
+matching tfvars file when planning:
+
+```bash
+terraform -chdir=example/eks init -backend-config=env/dev/backend.hcl
+terraform -chdir=example/eks plan -var-file=env/dev/dev.tfvars
+```
 
 ## EC2 Module
 
@@ -857,12 +935,13 @@ Working root configurations are available under [`example/`](example/):
 - [`example/vpc/`](example/vpc/) creates the VPC module and exports its subnet IDs.
 - [`example/eks/`](example/eks/) creates EKS and reads VPC private subnet IDs from Terraform remote state.
 
-The example environments demonstrate remote state usage: VPC uses a Terraform
-Cloud backend, while EKS uses an S3 backend with the lockfile option. Review and
-replace the backend organization, workspace, bucket, and key before applying.
+The example environments demonstrate remote state usage: VPC uses an HCP
+Terraform backend, while EKS uses an S3 backend with native lockfile support
+and reads VPC outputs from HCP Terraform remote state. Review and replace the
+organization, workspace, bucket, region, and key before applying.
 
 ## Changelog Notes
 
 - VPC module: multi-AZ network container, public/private routing, NAT gateway, optional public security group, and Flow Logs with optional KMS encryption.
-- EKS module: standard managed node group, Auto Mode support, mode-aware managed add-ons, CNI/EBS CSI pod identity, optional Fargate, and optional Load Balancer Controller IAM resources.
+- EKS module: multiple managed node groups, Auto Mode support, mode-aware managed add-ons, CNI/EBS CSI Pod Identity, optional Fargate and controller IAM resources, and Karpenter infrastructure.
 - EC2 module: one configurable EC2 instance, root volume controls, optional data-volume creation and attachment, and instance/volume outputs.

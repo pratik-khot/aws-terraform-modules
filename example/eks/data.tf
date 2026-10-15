@@ -1,10 +1,9 @@
 data "terraform_remote_state" "vpc" {
   backend = "remote"
   config = {
-    organization = "aws-tf-org-pk"
+    organization = var.vpc_remote_state_organization
     workspaces = {
-      name = "vpc-dev"
+      name = var.vpc_remote_state_workspace
     }
   }
-
 }
