@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.6...v0.2.7) (2026-10-15)
+
+
+### Features
+
+* Added multiple node groups options for standard eks ([3580190](https://github.com/pratik-khot/aws-terraform-modules/commit/3580190f46c871ba3bfc8acbc0f1fea357e9579f))
+
 ## [0.2.6](https://github.com/pratik-khot/aws-terraform-modules/compare/v0.2.5...v0.2.6) (2026-10-08)
 
 
